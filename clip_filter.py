@@ -42,5 +42,4 @@ class CLIP:
             max_probs = np.argmax(probs)
             ret.append({"path": x, "probs": max_probs})
         del df["classes"]
-        del df["PATH"]
         return ret
