@@ -51,7 +51,7 @@ def parse_wat(content):
                     continue
                 url = e["url"]
                 alt_text = e["alt"].encode("ascii", "ignore").decode()
-                _, _, details = cld2.detect(alt_text[:76])
+                _, _, details = cld2.detect(alt_text)
                 if details[0][1] == "en" and url not in urlist:
                     if not url.startswith("http"):
                         url = urljoin(base_url, url)
