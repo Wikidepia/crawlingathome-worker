@@ -179,7 +179,7 @@ if __name__ == "__main__":
     with open("shard.wat", "r") as infile:
         parsed_data = parse_wat(infile)
     dlparse_df = trio.run(
-        dl_wat, parsed_data[:3000], first_sample_id, img_output_folder
+        dl_wat, parsed_data, first_sample_id, img_output_folder
     )
     filtered_df, img_embeddings = df_clipfilter(dlparse_df)
     with open(output_folder + "image_embeddings.pkl", "wb") as f:
