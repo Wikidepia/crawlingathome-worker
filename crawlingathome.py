@@ -115,7 +115,7 @@ async def dl_wat(valid_data, first_sample_id):
         with open(out_fname, "wb") as f:
             f.write(img_data)
 
-        pil_image = Image.open(BytesIO(img_data))
+        pil_image = Image.open(out_fname)
         width, height = pil_image.size
         processed_samples.append(
             [str(sample_id), out_fname, response.url, alt_text, width, height]
