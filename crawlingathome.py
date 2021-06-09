@@ -6,6 +6,7 @@ import asks
 import pandas as pd
 import pycld2 as cld2
 import regex
+import requests
 import tensorflow as tf
 import trio
 import ujson
@@ -15,7 +16,7 @@ from tfr_image.utils import bytes_feature, int64_feature
 import clip_filter
 
 clip = clip_filter.CLIP()
-ImageFile.LOAD_TRUNCATED_IMAGES = True # https://stackoverflow.com/a/47958486
+ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
 
 def remove_bad_chars(text):
@@ -169,6 +170,49 @@ def df_tfrecords(df, output_folder):
             tfrecord_writer.write(example.SerializeToString())
 
 
+def refresh_gdrive_token(client_id, client_secret, refresh_token):
+    params = {
+        "grant_type": "refresh_token",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "refresh_token": refresh_token,
+    }
+
+    authorization_url = "https://www.googleapis.com/oauth2/v4/token"
+
+    r = requests.post(authorization_url, data=params)
+
+    if r.ok:
+        return r.json()["access_token"]
+    else:
+        return None
+
+
+def upload_gdrive(output_filename):
+    access_t = refresh_gdrive_token(
+        "648172777761-onv1nc5f93nhlhf63flsq6onrmjphpfo.apps.googleusercontent.com",
+        "HZ4Zw-_jVJ-3mwicz1NM5W5x",
+        "1//04N2Kysz1LObLCgYIARAAGAQSNwF-L9IrntHNWi2_nEVu2QX5fmlW0Ea0qA-ToBJLSdatDATYxiKcNFI8eZQ_fYN53gjF7b8MGmA",
+    )
+
+    headers = {"Authorization": "Bearer " + access_t}
+
+    para = {
+        "name": output_filename.split("/")[-1],
+        "parents": ["1CIgcIR7nX2xNBPB577jwEqbbwxAJR_nt"],
+    }
+
+    files = {
+        "data": ("metadata", ujson.dumps(para), "application/json; charset=UTF-8"),
+        "file": ("application/zip", open(output_filename, "rb")),
+    }
+    r = requests.post(
+        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+        headers=headers,
+        files=files,
+    )
+
+
 if __name__ == "__main__":
     output_folder = "./save/"
     csv_output_folder = output_folder
@@ -178,9 +222,7 @@ if __name__ == "__main__":
 
     with open("shard.wat", "r") as infile:
         parsed_data = parse_wat(infile)
-    dlparse_df = trio.run(
-        dl_wat, parsed_data, first_sample_id, img_output_folder
-    )
+    dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id, img_output_folder)
     filtered_df, img_embeddings = df_clipfilter(dlparse_df)
     with open(output_folder + "image_embeddings.pkl", "wb") as f:
         pickle.dump(img_embeddings, f)
