@@ -1,0 +1,11 @@
+asks
+datasets
+ftfy
+pandas
+pycld2
+tensorflow
+tfr_image
+torch
+transformers
+trio
+ujson
