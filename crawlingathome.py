@@ -16,6 +16,7 @@ from tfr_image.utils import bytes_feature, int64_feature
 import clip_filter
 
 clip = clip_filter.CLIP()
+session = asks.Session(connections=64)
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
 
@@ -24,7 +25,6 @@ def remove_bad_chars(text):
 
 
 def parse_wat(content):
-    urlist = []
     valid_data = []
     for line in content:
         if "IMG@" not in line:
@@ -63,7 +63,7 @@ async def request_image(data):
     global responses
     url, alt_text = data
     try:
-        r = await asks.get(url, timeout=120)
+        r = await session.get(url, timeout=120)
     except Exception:
         return
     return responses.append((r, alt_text))
