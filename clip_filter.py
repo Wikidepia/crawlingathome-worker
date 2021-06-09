@@ -22,9 +22,16 @@ class CLIP:
         return rgbimg
 
     def classification(self, batch):
-        inputs = self.processor(images=[self.load_img(f) for f in batch["PATH"]], text=batch["classes"][0].split("**"), return_tensors="pt", padding=True).to(device)
+        inputs = self.processor(
+            images=[self.load_img(f) for f in batch["PATH"]],
+            text=batch["classes"][0].split("**"),
+            return_tensors="pt",
+            padding=True,
+        ).to(self.device)
         outputs = self.model(**inputs)
-        logits_per_image = outputs.logits_per_image # this is the image-text similarity score
+        logits_per_image = (
+            outputs.logits_per_image
+        )  # this is the image-text similarity score
         batch["probs"] = logits_per_image.softmax(dim=1).detach().numpy()
         batch["img_embeddings"] = outputs.image_embeds.detach().numpy()
         return batch
