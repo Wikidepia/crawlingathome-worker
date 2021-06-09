@@ -17,9 +17,9 @@ class CLIP:
 
     def load_img(self, path):
         image = Image.open(path)
-        if ".png" in path:
-            image = image.convert("RGB")
-        return image
+        rgbimg = Image.new("RGB", image.size)
+        rgbimg.paste(image)
+        return rgbimg
 
     def classification(self, batch):
         inputs = self.processor(
