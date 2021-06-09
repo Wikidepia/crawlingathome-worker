@@ -62,8 +62,6 @@ async def request_image(data):
     url, alt_text = data
     try:
         r = await asks.get(url, timeout=120)
-        if len(r.content) < 1024:
-            return
     except Exception:
         return
     return responses.append((r, alt_text))
@@ -101,7 +99,11 @@ async def dl_wat(valid_data, first_sample_id, img_output_folder):
         with open(out_fname, "wb") as f:
             f.write(img_data)
 
-        pil_image = Image.open(out_fname)
+        try:
+            pil_image = Image.open(out_fname)
+        except:
+            os.remove(out_fname)
+            continue
         width, height = pil_image.size
         processed_samples.append(
             [str(sample_id), out_fname, response.url, alt_text, width, height]
