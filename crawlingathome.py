@@ -1,14 +1,23 @@
-import json
 import os
+import pickle
 import time
+from io import BytesIO
 from urllib.parse import urljoin, urlparse
 
 import asks
-import cairosvg
 import pandas as pd
 import pycld2 as cld2
+import regex
 import trio
+import ujson
+from PIL import Image
+from glob import glob
 
+import tensorflow as tf
+from tfr_image.utils import (
+    bytes_feature,
+    int64_feature,
+)
 import clip_filter
 
 clip = clip_filter.CLIP()
@@ -18,6 +27,48 @@ img_output_folder = output_folder + "images/"
 similarity_threshold = 0.3
 start_time = time.time()
 first_sample_id = 0
+
+RE_BAD_CHARS = regex.compile(r"\p{Cc}|\p{Cs}")
+
+
+def remove_bad_chars(text):
+    return RE_BAD_CHARS.sub("", text)
+
+
+def parse_wat(content):
+    urlist = []
+    valid_data = []
+    for line in content:
+        if "IMG@" not in line:
+            continue
+        line_str = line.strip()
+        data = ujson.loads(line_str)
+        linklist = data["Envelope"]["Payload-Metadata"]["HTTP-Response-Metadata"][
+            "HTML-Metadata"
+        ]["Links"]
+        base_url = os.path.dirname(
+            data["Envelope"]["WARC-Header-Metadata"]["WARC-Target-URI"]
+        )  # get base url
+
+        for e in linklist:
+            if "alt" not in e:
+                continue
+            url = e["url"]
+            alt_text = e["alt"].encode("ascii", "ignore").decode()
+            for _ in range(2):
+                try:
+                    _, _, details = cld2.detect(alt_text)
+                    break
+                except Exception as e:
+                    alt_text = remove_bad_chars(alt_text)
+
+            if details[0][1] == "en":
+                if not url.startswith("http"):
+                    url = urljoin(base_url, url)
+                valid_data.append((url, alt_text))
+    return [
+        t for t in (set(tuple(i) for i in valid_data))
+    ]  # Remove duplicate tuple from list
 
 
 async def request_image(data):
@@ -32,38 +83,7 @@ async def request_image(data):
     return responses.append((r, alt_text))
 
 
-def parse_wat(content):
-    urlist = []
-    valid_data = []
-    for line in content:
-        line_str = line.strip()
-        if "IMG@" in line_str and "alt:" in line_str:
-            data = json.loads(line_str)
-            linklist = data["Envelope"]["Payload-Metadata"]["HTTP-Response-Metadata"][
-                "HTML-Metadata"
-            ]["Links"]
-            base_url = os.path.dirname(
-                data["Envelope"]["WARC-Header-Metadata"]["WARC-Target-URI"]
-            )  # get base url
-
-            for e in linklist:
-                if "alt" not in e or len(e["alt"]) < 4:
-                    continue
-                url = e["url"]
-                alt_text = e["alt"].encode("ascii", "ignore").decode()
-                _, _, details = cld2.detect(alt_text)
-                if details[0][1] == "en" and url not in urlist:
-                    if not url.startswith("http"):
-                        url = urljoin(base_url, url)
-                    urlist.append(url)
-                    valid_data.append((url, alt_text))
-    return valid_data
-
-
-async def dl_wat(
-    valid_data,
-    first_sample_id,
-):
+async def dl_wat(valid_data, first_sample_id):
     global responses
     responses = []
     processed_samples = []
@@ -88,34 +108,28 @@ async def dl_wat(
             filetype = os.path.splitext(url_path)[1]
 
         img_data = response.content
-        if "svg" in filetype:  # Untested
-            filetype = "png"
-            img_data = cairosvg.svg2png(
-                url=response.url,
-                output_height=600,
-            )
-        elif "gif" in filetype:
+        if "gif" in filetype or "svg" in filetype:
             continue
         out_fname = img_output_folder + str(sample_id) + "." + filetype.strip(".")
         with open(out_fname, "wb") as f:
             f.write(img_data)
 
-        processed_samples.append([str(sample_id), out_fname, response.url, alt_text])
+        pil_image = Image.open(BytesIO(img_data))
+        width, height = pil_image.size
+        processed_samples.append(
+            [str(sample_id), out_fname, response.url, alt_text, width, height]
+        )
         sample_id += 1
     return pd.DataFrame(
         processed_samples,
-        columns=["SAMPLE_ID", "PATH", "URL", "TEXT"],
+        columns=["SAMPLE_ID", "PATH", "URL", "TEXT", "HEIGHT", "WIDTH"],
     )
 
 
 def df_clipfilter(df):
-    categories = ["neutral","selfie", "illustration, drawing", "toys, play, kids, children", "teddy bear, puppet", "animal, bird, mammal, insect" "fashion, clothes", "logo, commercial, ad, advertisement", "drawing, painting","anime, cartoon","comedy, fun","romance, love story","thriller, suspense, crime story","action, action movie", "horror, monster movie", "documentary", "news, journalism", "entertainment", "talk show", "porn, sex, sperm, nipples, breats, tits, boops, penis, dick, cock, clitoris, vagina, fuck, lust, horny, sexual, lick, licking",  "porn, sex, sperm, nipples", "porn, sex, sperm, penis, dick, cock", "nipples, breats, tits, boops, sexy", "penis, dick, cock", "clitoris, vagina", "sex, fuck, lust, horny, sexual, lick, licking", "porn, sex, sexy","sexy, hot","sperm, skin","lust, horny, sexual","lick, licking, body", "anime, hentai, sexy", "cartoon, sexy, sex", "hentai", "anime, sexy, breasts", "hentai"]
-    underaged_categories = ["teenager, teen", "kid, child, teenager, teen, baby or toddler, underaged, little girl, little boy", "kid, child, little girl, little boy", "baby, toddler","adult, woman, man, grownup, grown person,full-aged of legal age","full-aged, of legal age, adult","woman, man","adult, woman, man, grownup, grown person,full-aged of legal age"]
-    animal_categories = ["lifeless object, thing", "thing, object", "material", "furniture","wall", "house", "tree", "wood","ground","industry", "table", "bed", "tool", "dress, clothes", "door", "chair", "rock, stone", "human", "man", "woman", "man, woman", "animal","cat","dog", "cow", "pig", "goat", "sheep", "elephant", "horse", "horse, elephant, pig, dog, cat, sheep, goat, animal", "life", "wildlife"]
-  
-    nsfw_filters = clip.clip_filter(df, categories)
-    underage_filters = clip.clip_filter(df, underaged_categories)
-    animal_filters = clip.clip_filter(df, animal_categories)
+    nsfw_filters, img_embeddings = clip.filter(df, clip.categories)
+    underage_filters, _ = clip.filter(df, clip.underaged_categories)
+    animal_filters, _ = clip.filter(df, clip.animal_categories)
     for i, (nsfw_prob, underage_prob, animal_prob) in enumerate(
         zip(nsfw_filters, underage_filters, animal_filters)
     ):
@@ -128,11 +142,47 @@ def df_clipfilter(df):
             df.at[i, "NSFW"] = "NSFW"
         else:
             df.at[i, "NSFW"] = "UNSURE"
-        # print(categories[nsfw_prob], underaged_categories[underage_prob])
-    return df
+    return df, img_embeddings
 
 
-if True:
+def image_to_tfexample(sample_id, image_data, image_format, height, width, caption):
+    return tf.train.Example(
+        features=tf.train.Features(
+            feature={
+                "sampleID": bytes_feature(sample_id),
+                "image": bytes_feature(image_data),
+                "format": bytes_feature(image_format),
+                "label": bytes_feature(caption),
+                "height": int64_feature(height),
+                "width": int64_feature(width),
+            }
+        )
+    )
+
+
+def df_tfrecords(df, img_folder):
+    with tf.io.TFRecordWriter(output_folder + "images.tfrecord") as tfrecord_writer:
+        for i, image_fname in enumerate(glob(img_folder.strip("/") + "/*.*")):
+            df_image = df.iloc[1]
+            file_type = image_fname.split(".")[-1]
+            with tf.io.gfile.GFile(image_fname, "rb") as f:
+                image_data = f.read()
+            example = image_to_tfexample(
+                df_image["SAMPLE_ID"].encode("utf_8"),
+                image_data,
+                file_type.encode("utf_8"),
+                df_image["HEIGHT"],
+                df_image["WIDTH"],
+                df_image["TEXT"].encode("utf_8"),
+            )
+            tfrecord_writer.write(example.SerializeToString())
+
+
+if __name__ == "__main__" :
     with open("shard.wat", "r") as infile:
         parsed_data = parse_wat(infile)
-    dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
+    dlparse_df = trio.run(dl_wat, parsed_data[:3000], first_sample_id)
+    filtered_df, img_embeddings = df_clipfilter(dlparse_df)
+    with open(output_folder + "image_embeddings.pkl", "wb") as f:
+        pickle.dump(img_embeddings, f)
+    df_tfrecords(filtered_df, img_output_folder)
