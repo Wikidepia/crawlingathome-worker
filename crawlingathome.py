@@ -1,11 +1,11 @@
 import os
 import pickle
-import re
 from urllib.parse import urljoin, urlparse
 
 import asks
 import pandas as pd
 import pycld2 as cld2
+import regex
 import tensorflow as tf
 import trio
 import ujson
@@ -18,7 +18,7 @@ clip = clip_filter.CLIP()
 
 
 def remove_bad_chars(text):
-    return re.sub(r"\p{Cc}|\p{Cs}", "", text)
+    return regex.sub(r"\p{Cc}|\p{Cs}", "", text)
 
 
 def parse_wat(content):
