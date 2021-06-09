@@ -106,10 +106,11 @@ async def dl_wat(valid_data, first_sample_id):
         else:
             url_path = urlparse(response.url).path
             filetype = os.path.splitext(url_path)[1]
-
-        img_data = response.content
+        
         if "gif" in filetype or "svg" in filetype:
             continue
+        
+        img_data = response.content
         out_fname = img_output_folder + str(sample_id) + "." + filetype.strip(".")
         with open(out_fname, "wb") as f:
             f.write(img_data)
@@ -163,7 +164,7 @@ def image_to_tfexample(sample_id, image_data, image_format, height, width, capti
 def df_tfrecords(df, img_folder):
     with tf.io.TFRecordWriter(output_folder + "images.tfrecord") as tfrecord_writer:
         for i, image_fname in enumerate(glob(img_folder.strip("/") + "/*.*")):
-            df_image = df.iloc[1]
+            df_image = df.iloc[i]
             file_type = image_fname.split(".")[-1]
             with tf.io.gfile.GFile(image_fname, "rb") as f:
                 image_data = f.read()
