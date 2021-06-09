@@ -1,38 +1,24 @@
 import os
 import pickle
-import time
-from io import BytesIO
+import re
 from urllib.parse import urljoin, urlparse
 
 import asks
 import pandas as pd
 import pycld2 as cld2
-import regex
+import tensorflow as tf
 import trio
 import ujson
 from PIL import Image
-from glob import glob
+from tfr_image.utils import bytes_feature, int64_feature
 
-import tensorflow as tf
-from tfr_image.utils import (
-    bytes_feature,
-    int64_feature,
-)
 import clip_filter
 
 clip = clip_filter.CLIP()
-output_folder = "./save/"
-csv_output_folder = output_folder
-img_output_folder = output_folder + "images/"
-similarity_threshold = 0.3
-start_time = time.time()
-first_sample_id = 0
-
-RE_BAD_CHARS = regex.compile(r"\p{Cc}|\p{Cs}")
 
 
 def remove_bad_chars(text):
-    return RE_BAD_CHARS.sub("", text)
+    return re.sub(r"\p{Cc}|\p{Cs}", "", text)
 
 
 def parse_wat(content):
@@ -83,7 +69,7 @@ async def request_image(data):
     return responses.append((r, alt_text))
 
 
-async def dl_wat(valid_data, first_sample_id):
+async def dl_wat(valid_data, first_sample_id, img_output_folder):
     global responses
     responses = []
     processed_samples = []
@@ -106,10 +92,10 @@ async def dl_wat(valid_data, first_sample_id):
         else:
             url_path = urlparse(response.url).path
             filetype = os.path.splitext(url_path)[1]
-        
+
         if "gif" in filetype or "svg" in filetype:
             continue
-        
+
         img_data = response.content
         out_fname = img_output_folder + str(sample_id) + "." + filetype.strip(".")
         with open(out_fname, "wb") as f:
@@ -161,10 +147,11 @@ def image_to_tfexample(sample_id, image_data, image_format, height, width, capti
     )
 
 
-def df_tfrecords(df, img_folder):
+def df_tfrecords(df, output_folder):
     with tf.io.TFRecordWriter(output_folder + "images.tfrecord") as tfrecord_writer:
-        for i, image_fname in enumerate(glob(img_folder.strip("/") + "/*.*")):
+        for i in range(len(df)):
             df_image = df.iloc[i]
+            image_fname = df_image["PATH"]
             file_type = image_fname.split(".")[-1]
             with tf.io.gfile.GFile(image_fname, "rb") as f:
                 image_data = f.read()
@@ -179,11 +166,19 @@ def df_tfrecords(df, img_folder):
             tfrecord_writer.write(example.SerializeToString())
 
 
-if __name__ == "__main__" :
+if __name__ == "__main__":
+    output_folder = "./save/"
+    csv_output_folder = output_folder
+    img_output_folder = output_folder + "images/"
+    similarity_threshold = 0.3
+    first_sample_id = 0
+
     with open("shard.wat", "r") as infile:
         parsed_data = parse_wat(infile)
-    dlparse_df = trio.run(dl_wat, parsed_data[:3000], first_sample_id)
+    dlparse_df = trio.run(
+        dl_wat, parsed_data[:3000], first_sample_id, img_output_folder
+    )
     filtered_df, img_embeddings = df_clipfilter(dlparse_df)
     with open(output_folder + "image_embeddings.pkl", "wb") as f:
         pickle.dump(img_embeddings, f)
-    df_tfrecords(filtered_df, img_output_folder)
+    df_tfrecords(filtered_df, output_folder)
