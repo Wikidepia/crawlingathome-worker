@@ -9,12 +9,13 @@ import regex
 import tensorflow as tf
 import trio
 import ujson
-from PIL import Image
+from PIL import Image, ImageFile
 from tfr_image.utils import bytes_feature, int64_feature
 
 import clip_filter
 
 clip = clip_filter.CLIP()
+ImageFile.LOAD_TRUNCATED_IMAGES = True # https://stackoverflow.com/a/47958486
 
 
 def remove_bad_chars(text):
