@@ -1,6 +1,14 @@
-# Headless Crawling@Home
+# Crawling@Home
 
-This script runs https://github.com/TheoCoombes/crawlingathome from linux box. SVG images will most likely be lost in this scenario. Otherwise the script will behave very similar to its Colab source at: https://colab.research.google.com/drive/1P1H-1kc_CFgJE1NOnXywm2fVSoyv2gMW
+> Help us build a billion-scale image-caption dataset by filtering Common Crawl with OpenAI CLIP
+
+## Setup
+
+1. `git clone https://github.com/Wikidepia/headless-crawlingathome/`, to download headless-crawlingathome.
+2. `cd headless-crawlingathome`, to enter the directory.
+3. `python3 -m venv venv && . venv/bin/activate`, to create virtual environment.
+4. `. setup.sh`, to install dependencies.
+5. `python3 crawlingathome.py`, to start Crawling!
 
 ## TODO
 - [x] Save image embedding 
@@ -8,5 +16,5 @@ This script runs https://github.com/TheoCoombes/crawlingathome from linux box. S
 - [x] Upload to google drive
 - [x] Prevent corrupt image to be processed
 - [ ] Shard of chunk (it needs to read all WAT file which will be bad for low ram server)
-- [ ] Crawling@Home integration
+- [x] Crawling@Home integration
 - [ ] Verify output

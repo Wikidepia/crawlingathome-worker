@@ -1,24 +1,17 @@
 import gc
 import os
 import pickle
+import shutil
+import time
 from glob import glob
-from io import BytesIO
 from urllib.parse import urljoin, urlparse
 from uuid import uuid1
 
-import asks
-import pandas as pd
-import pycld2 as cld2
 import regex
-import requests
-import tractor
 import trio
 import ujson
 from PIL import Image, ImageFile, UnidentifiedImageError
 
-import clip_filter
-
-session = asks.Session(connections=256)
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
 
@@ -32,6 +25,8 @@ def remove_bad_chars(text):
 
 
 def parse_wat(content):
+    import pycld2 as cld2
+
     valid_data = []
     for line in content:
         if "IMG@" not in line:
@@ -69,7 +64,7 @@ def parse_wat(content):
 
 
 def process_img_content(response, alt_text, sample_id):
-    img_output_folder = "save/images"
+    img_output_folder = "save/images/"
     if "content-type" in response.headers:
         if "image/" not in response.headers["content-type"]:
             return
@@ -86,9 +81,9 @@ def process_img_content(response, alt_text, sample_id):
     out_fname = img_output_folder + str(sample_id) + "." + filetype.strip(".")
     try:
         img_data = response.content  # Raise KeyError
-        pil_image = Image.open(BytesIO(img_data))  # Raise UnidentifiedImageError
         with open(out_fname, "wb") as f:
             f.write(img_data)
+        pil_image = Image.open(out_fname)  # Raise UnidentifiedImageError
     except (KeyError, UnidentifiedImageError) as e:
         if os.path.exists(out_fname):
             os.remove(out_fname)
@@ -98,30 +93,43 @@ def process_img_content(response, alt_text, sample_id):
 
 
 async def request_image(datas, start_sampleid):
+    import asks
+
     tmp_data = []
-    for data in datas:
+    session = asks.Session(connections=2048)
+
+    async def _request(data, sample_id):
         url, alt_text = data
         try:
-            r = await session.get(url, timeout=1)
+            proces = process_img_content(
+                await session.get(url, timeout=5), alt_text, sample_id
+            )
+            if proces is not None:
+                tmp_data.append(proces)
         except Exception:
-            continue
-        proces = process_img_content(r, alt_text, start_sampleid)
-        if proces is not None:
-            tmp_data.append(proces)
-        start_sampleid += 1
+            return
+
+    async with trio.open_nursery() as n:
+        for data in datas:
+            n.start_soon(_request, data, start_sampleid)
+            start_sampleid += 1
+
     with open(f".tmp/{uuid1()}.json", "w") as f:
         ujson.dump(tmp_data, f)
     gc.collect()
     return
 
 
-async def dl_wat(valid_data, first_sample_id, img_output_folder):
+async def dl_wat(valid_data, first_sample_id):
+    import pandas as pd
+    import tractor
+
     # Download every image available
     processed_samples = []
     async with tractor.open_nursery() as n:
-        for i, data in enumerate(chunk_using_generators(valid_data, 1024)):
+        for i, data in enumerate(chunk_using_generators(valid_data, 4096)):
             await n.run_in_actor(
-                request_image, datas=data, start_sampleid=i * 1024 + first_sample_id
+                request_image, datas=data, start_sampleid=i * 4096 + first_sample_id
             )
 
     for tmpf in glob(".tmp/*.json"):
@@ -133,15 +141,17 @@ async def dl_wat(valid_data, first_sample_id, img_output_folder):
 
 
 def df_clipfilter(df):
+    import clip_filter
+
     clip = clip_filter.CLIP()
 
-    nsfw_filters, img_embeddings = clip.filter(df, clip.categories)
-    underage_filters, _ = clip.filter(df, clip.underaged_categories)
-    animal_filters, _ = clip.filter(df, clip.animal_categories)
-    for i, (nsfw_prob, underage_prob, animal_prob) in enumerate(
-        zip(nsfw_filters, underage_filters, animal_filters)
-    ):
-        nsfw_prob, underage_prob = nsfw_prob["probs"], underage_prob["probs"]
+    preprocessed_image = clip.preprocess_images(df)
+    nsfw_filters = clip.filter(preprocessed_image["img_embedding"], clip.categories)
+    underage_filters = clip.filter(
+        preprocessed_image["img_embedding"], clip.underaged_categories
+    )
+    # animal_filters = clip.filter(preprocessed_image["img_embedding"], clip.animal_categories)
+    for i, (nsfw_prob, underage_prob) in enumerate(zip(nsfw_filters, underage_filters)):
 
         # Review this please, my brain is too smol
         if nsfw_prob <= 19 and underage_prob >= 4:
@@ -150,7 +160,7 @@ def df_clipfilter(df):
             df.at[i, "NSFW"] = "NSFW"
         else:
             df.at[i, "NSFW"] = "UNSURE"
-    return df, img_embeddings
+    return df, preprocessed_image["img_embedding"]
 
 
 def df_tfrecords(df, output_folder):
@@ -189,33 +199,34 @@ def df_tfrecords(df, output_folder):
             tfrecord_writer.write(example.SerializeToString())
 
 
-def refresh_gdrive_token(client_id, client_secret, refresh_token):
-    params = {
-        "grant_type": "refresh_token",
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "refresh_token": refresh_token,
-    }
-
-    authorization_url = "https://www.googleapis.com/oauth2/v4/token"
-
-    r = requests.post(authorization_url, data=params)
-
-    if r.ok:
-        return r.json()["access_token"]
-    else:
-        return None
-
-
 def upload_gdrive(output_filename):
-    access_t = refresh_gdrive_token(
-        "648172777761-onv1nc5f93nhlhf63flsq6onrmjphpfo.apps.googleusercontent.com",
-        "HZ4Zw-_jVJ-3mwicz1NM5W5x",
-        "1//04N2Kysz1LObLCgYIARAAGAQSNwF-L9IrntHNWi2_nEVu2QX5fmlW0Ea0qA-ToBJLSdatDATYxiKcNFI8eZQ_fYN53gjF7b8MGmA",
+    import requests
+
+    client_id = (
+        "648172777761-onv1nc5f93nhlhf63flsq6onrmjphpfo.apps.googleusercontent.com"
     )
+    client_secret = "HZ4Zw-_jVJ-3mwicz1NM5W5x"
+    refresh_token = "1//04N2Kysz1LObLCgYIARAAGAQSNwF-L9IrntHNWi2_nEVu2QX5fmlW0Ea0qA-ToBJLSdatDATYxiKcNFI8eZQ_fYN53gjF7b8MGmA"
 
+    def refresh_gdrive_token():
+        params = {
+            "grant_type": "refresh_token",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+        }
+
+        authorization_url = "https://www.googleapis.com/oauth2/v4/token"
+
+        r = requests.post(authorization_url, data=params)
+
+        if r.ok:
+            return r.json()["access_token"]
+        else:
+            return None
+
+    access_t = refresh_gdrive_token()
     headers = {"Authorization": "Bearer " + access_t}
-
     para = {
         "name": output_filename.split("/")[-1],
         "parents": ["1CIgcIR7nX2xNBPB577jwEqbbwxAJR_nt"],
@@ -233,19 +244,52 @@ def upload_gdrive(output_filename):
 
 
 if __name__ == "__main__":
+    import crawlingathome_client as cah
+
+    YOUR_NICKNAME_FOR_THE_LEADERBOARD = "Wikidepia"
+    CRAWLINGATHOME_SERVER_URL = "http://178.63.68.247:8181/"
+
+    client = cah.init(
+        url=CRAWLINGATHOME_SERVER_URL, nickname=YOUR_NICKNAME_FOR_THE_LEADERBOARD
+    )
     output_folder = "./save/"
     csv_output_folder = output_folder
     img_output_folder = output_folder + "images/"
     similarity_threshold = 0.3
-    first_sample_id = 0
 
-    print("Processing WAT")
-    with open("shard.wat", "r") as infile:
-        parsed_data = parse_wat(infile)
-    print("WAT processed, downloading images")
-    dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id, img_output_folder)
-    print("Filtering images")
-    filtered_df, img_embeddings = df_clipfilter(dlparse_df)
-    with open(output_folder + "image_embeddings.pkl", "wb") as f:
-        pickle.dump(img_embeddings, f)
-    df_tfrecords(filtered_df, output_folder)
+    while client.jobCount() > 0:
+        start = time.time()
+        if os.path.exists(output_folder):
+            shutil.rmtree(output_folder)
+        if os.path.exists(".tmp"):
+            shutil.rmtree(".tmp")
+
+        os.mkdir(output_folder)
+        os.mkdir(img_output_folder)
+        os.mkdir(".tmp")
+
+        client.newJob()
+        client.downloadShard()
+        first_sample_id = int(client.start_id)
+        last_sample_id = int(client.end_id)
+
+        client.log("Processing shard")
+        with open("shard.wat", "r") as infile:
+            parsed_data = parse_wat(infile)
+
+        client.log("Downloading images")
+        dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
+        dlparse_df.to_csv(output_folder + "image.csv")
+
+        client.log("Dropping NSFW keywords")
+        filtered_df, img_embeddings = df_clipfilter(dlparse_df)
+        filtered_df.to_csv(output_folder + "image.csv")
+        with open(output_folder + "image_embeddings.pkl", "wb") as f:
+            pickle.dump(img_embeddings, f)
+
+        client.log("Saving TFRs")
+        df_tfrecords(filtered_df, output_folder)
+        # upload_gdrive(output_folder + "image_embeddings.pkl")
+        # upload_gdrive(output_folder + "images.tfrecord")
+        client._markjobasdone(len(filtered_df))
+        print(f"[crawling@home] jobs completed in {time.time() - start}")

@@ -2,11 +2,12 @@ asks
 datasets
 ftfy
 pandas
+Pillow
 pycld2
 tensorflow
 tfr_image
-torch
+torch==1.7.1
+torchvision==0.8.2
 tractor
-transformers
 trio
 ujson
