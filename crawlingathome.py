@@ -1,23 +1,30 @@
+import gc
 import os
 import pickle
+from glob import glob
+from io import BytesIO
 from urllib.parse import urljoin, urlparse
+from uuid import uuid1
 
 import asks
 import pandas as pd
 import pycld2 as cld2
 import regex
 import requests
-import tensorflow as tf
+import tractor
 import trio
 import ujson
-from PIL import Image, ImageFile
-from tfr_image.utils import bytes_feature, int64_feature
+from PIL import Image, ImageFile, UnidentifiedImageError
 
 import clip_filter
 
-clip = clip_filter.CLIP()
-session = asks.Session(connections=64)
+session = asks.Session(connections=256)
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
+
+
+def chunk_using_generators(lst, n):
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]
 
 
 def remove_bad_chars(text):
@@ -43,6 +50,8 @@ def parse_wat(content):
                 continue
             url = e["url"]
             alt_text = e["alt"].encode("ascii", "ignore").decode()
+            if url.endswith(".svg") or url.endswith(".gif"):
+                continue
             for _ in range(2):
                 try:
                     _, _, details = cld2.detect(alt_text)
@@ -59,58 +68,64 @@ def parse_wat(content):
     ]  # Remove duplicate tuple from list
 
 
-async def request_image(data):
-    global responses
-    url, alt_text = data
-    try:
-        r = await session.get(url, timeout=120)
-    except Exception:
+def process_img_content(response, alt_text, sample_id):
+    img_output_folder = "save/images"
+    if "content-type" in response.headers:
+        if "image/" not in response.headers["content-type"]:
+            return
+        filetype = (
+            response.headers["content-type"].split("/")[-1].split(";")[0]
+        )  # Unreliable, maybe get filetype from content?
+    else:
+        url_path = urlparse(response.url).path
+        filetype = os.path.splitext(url_path)[1]
+
+    if "gif" in filetype or "svg" in filetype:
         return
-    return responses.append((r, alt_text))
+
+    out_fname = img_output_folder + str(sample_id) + "." + filetype.strip(".")
+    try:
+        img_data = response.content  # Raise KeyError
+        pil_image = Image.open(BytesIO(img_data))  # Raise UnidentifiedImageError
+        with open(out_fname, "wb") as f:
+            f.write(img_data)
+    except (KeyError, UnidentifiedImageError) as e:
+        if os.path.exists(out_fname):
+            os.remove(out_fname)
+        return
+    width, height = pil_image.size
+    return [str(sample_id), out_fname, response.url, alt_text, width, height]
+
+
+async def request_image(datas, start_sampleid):
+    tmp_data = []
+    for data in datas:
+        url, alt_text = data
+        try:
+            r = await session.get(url, timeout=1)
+        except Exception:
+            continue
+        proces = process_img_content(r, alt_text, start_sampleid)
+        if proces is not None:
+            tmp_data.append(proces)
+        start_sampleid += 1
+    with open(f".tmp/{uuid1()}.json", "w") as f:
+        ujson.dump(tmp_data, f)
+    gc.collect()
+    return
 
 
 async def dl_wat(valid_data, first_sample_id, img_output_folder):
-    global responses
-    responses = []
-    processed_samples = []
-    sample_id = first_sample_id
-
     # Download every image available
-    async with trio.open_nursery() as nursery:
-        for data in valid_data:
-            nursery.start_soon(request_image, data)
-    print("Download part is done")
+    processed_samples = []
+    async with tractor.open_nursery() as n:
+        for i, data in enumerate(chunk_using_generators(valid_data, 1024)):
+            await n.run_in_actor(
+                request_image, datas=data, start_sampleid=i * 1024 + first_sample_id
+            )
 
-    for (response, alt_text) in responses:
-        # filetype from mime
-        if "content-type" in response.headers:
-            if "image/" not in response.headers["content-type"]:
-                continue
-            filetype = (
-                response.headers["content-type"].split("/")[-1].split(";")[0]
-            )  # Unreliable, maybe get filetype from content?
-        else:
-            url_path = urlparse(response.url).path
-            filetype = os.path.splitext(url_path)[1]
-
-        if "gif" in filetype or "svg" in filetype:
-            continue
-
-        img_data = response.content
-        out_fname = img_output_folder + str(sample_id) + "." + filetype.strip(".")
-        with open(out_fname, "wb") as f:
-            f.write(img_data)
-
-        try:
-            pil_image = Image.open(out_fname)
-        except:
-            os.remove(out_fname)
-            continue
-        width, height = pil_image.size
-        processed_samples.append(
-            [str(sample_id), out_fname, response.url, alt_text, width, height]
-        )
-        sample_id += 1
+    for tmpf in glob(".tmp/*.json"):
+        processed_samples.extend(ujson.load(open(tmpf)))
     return pd.DataFrame(
         processed_samples,
         columns=["SAMPLE_ID", "PATH", "URL", "TEXT", "HEIGHT", "WIDTH"],
@@ -118,6 +133,8 @@ async def dl_wat(valid_data, first_sample_id, img_output_folder):
 
 
 def df_clipfilter(df):
+    clip = clip_filter.CLIP()
+
     nsfw_filters, img_embeddings = clip.filter(df, clip.categories)
     underage_filters, _ = clip.filter(df, clip.underaged_categories)
     animal_filters, _ = clip.filter(df, clip.animal_categories)
@@ -136,22 +153,24 @@ def df_clipfilter(df):
     return df, img_embeddings
 
 
-def image_to_tfexample(sample_id, image_data, image_format, height, width, caption):
-    return tf.train.Example(
-        features=tf.train.Features(
-            feature={
-                "sampleID": bytes_feature(sample_id),
-                "image": bytes_feature(image_data),
-                "format": bytes_feature(image_format),
-                "label": bytes_feature(caption),
-                "height": int64_feature(height),
-                "width": int64_feature(width),
-            }
-        )
-    )
-
-
 def df_tfrecords(df, output_folder):
+    import tensorflow as tf
+    from tfr_image.utils import bytes_feature, int64_feature
+
+    def image_to_tfexample(sample_id, image_data, image_format, height, width, caption):
+        return tf.train.Example(
+            features=tf.train.Features(
+                feature={
+                    "sampleID": bytes_feature(sample_id),
+                    "image": bytes_feature(image_data),
+                    "format": bytes_feature(image_format),
+                    "label": bytes_feature(caption),
+                    "height": int64_feature(height),
+                    "width": int64_feature(width),
+                }
+            )
+        )
+
     with tf.io.TFRecordWriter(output_folder + "images.tfrecord") as tfrecord_writer:
         for i in range(len(df)):
             df_image = df.iloc[i]
@@ -220,9 +239,12 @@ if __name__ == "__main__":
     similarity_threshold = 0.3
     first_sample_id = 0
 
+    print("Processing WAT")
     with open("shard.wat", "r") as infile:
         parsed_data = parse_wat(infile)
+    print("WAT processed, downloading images")
     dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id, img_output_folder)
+    print("Filtering images")
     filtered_df, img_embeddings = df_clipfilter(dlparse_df)
     with open(output_folder + "image_embeddings.pkl", "wb") as f:
         pickle.dump(img_embeddings, f)

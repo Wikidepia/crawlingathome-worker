@@ -1,11 +1,11 @@
 import numpy as np
 from datasets import Dataset
 from PIL import Image
-from transformers import CLIPModel, CLIPProcessor
 
 
 class CLIP:
     def __init__(self):
+        from transformers import CLIPModel, CLIPProcessor
         self.device = "cpu"
         self.model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(
             self.device
@@ -41,9 +41,8 @@ class CLIP:
         df["classes"] = "**".join(classes)
         dataset = Dataset.from_pandas(df)
         result = dataset.map(self.classification, batched=True, batch_size=8)
-        for i, x in enumerate(result["PATH"]):
-            probs = result["probs"][i]
+        for path, probs in zip(result["PATH"], result["probs"]):
             max_probs = np.argmax(probs)
-            ret.append({"path": x, "probs": max_probs})
+            ret.append({"path": path, "probs": max_probs})
         del df["classes"]
         return ret, result["img_embeddings"]

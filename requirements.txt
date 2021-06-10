@@ -6,6 +6,7 @@ pycld2
 tensorflow
 tfr_image
 torch
+tractor
 transformers
 trio
 ujson
