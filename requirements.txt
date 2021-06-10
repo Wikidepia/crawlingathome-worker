@@ -4,6 +4,7 @@ ftfy
 pandas
 Pillow
 pycld2
+regex
 tensorflow
 tfr_image
 torch==1.7.1

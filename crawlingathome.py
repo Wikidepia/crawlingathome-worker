@@ -47,19 +47,18 @@ def parse_wat(content):
             alt_text = e["alt"].encode("ascii", "ignore").decode()
             if url.endswith(".svg") or url.endswith(".gif"):
                 continue
-            for _ in range(2):
-                try:
-                    _, _, details = cld2.detect(alt_text)
-                    break
-                except Exception as e:
-                    alt_text = remove_bad_chars(alt_text)
+            try:
+                _, _, details = cld2.detect(alt_text)
+            except Exception as e:
+                alt_text = remove_bad_chars(alt_text)
+                _, _, details = cld2.detect(alt_text)
 
             if details[0][1] == "en":
                 if not url.startswith("http"):
                     url = urljoin(base_url, url)
                 valid_data.append((url, alt_text))
     return [
-        t for t in (set(tuple(i) for i in valid_data))
+        t for t in {tuple(i) for i in valid_data}
     ]  # Remove duplicate tuple from list
 
 
@@ -292,4 +291,4 @@ if __name__ == "__main__":
         # upload_gdrive(output_folder + "image_embeddings.pkl")
         # upload_gdrive(output_folder + "images.tfrecord")
         client._markjobasdone(len(filtered_df))
-        print(f"[crawling@home] jobs completed in {time.time() - start}")
+        print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")
