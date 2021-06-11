@@ -40,8 +40,10 @@ def parse_wat(content):
         base_url = os.path.dirname(
             data["Envelope"]["WARC-Header-Metadata"]["WARC-Target-URI"]
         )  # get base url
-
+        license = "?"
         for e in linklist:
+            if "url" in e and "creativecommons.org/licenses/" in e["url"]:
+                license = e["url"]
             if "alt" not in e:
                 continue
             url = e["url"]
@@ -57,13 +59,13 @@ def parse_wat(content):
             if details[0][1] == "en":
                 if not url.startswith("http"):
                     url = urljoin(base_url, url)
-                valid_data.append((url, alt_text))
+                valid_data.append((url, alt_text, license))
     return [
         t for t in {tuple(i) for i in valid_data}
     ]  # Remove duplicate tuple from list
 
 
-def process_img_content(response, alt_text, sample_id):
+def process_img_content(response, alt_text, license, sample_id):
     img_output_folder = "save/images/"
     if "content-type" in response.headers:
         if "image/" not in response.headers["content-type"]:
@@ -89,7 +91,7 @@ def process_img_content(response, alt_text, sample_id):
             os.remove(out_fname)
         return
     width, height = pil_image.size
-    return [str(sample_id), out_fname, response.url, alt_text, width, height]
+    return [str(sample_id), out_fname, response.url, alt_text, width, height, license]
 
 
 async def request_image(datas, start_sampleid):
@@ -99,10 +101,10 @@ async def request_image(datas, start_sampleid):
     session = asks.Session(connections=512)
 
     async def _request(data, sample_id):
-        url, alt_text = data
+        url, alt_text, license = data
         try:
             proces = process_img_content(
-                await session.get(url, timeout=5), alt_text, sample_id
+                await session.get(url, timeout=5), alt_text, license, sample_id
             )
             if proces is not None:
                 tmp_data.append(proces)
@@ -136,7 +138,7 @@ async def dl_wat(valid_data, first_sample_id):
         processed_samples.extend(ujson.load(open(tmpf)))
     return pd.DataFrame(
         processed_samples,
-        columns=["SAMPLE_ID", "PATH", "URL", "TEXT", "HEIGHT", "WIDTH"],
+        columns=["SAMPLE_ID", "PATH", "URL", "TEXT", "HEIGHT", "WIDTH", "LICENSE"],
     )
 
 
