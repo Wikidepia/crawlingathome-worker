@@ -141,7 +141,7 @@ async def dl_wat(valid_data, first_sample_id):
 
 
 def df_clipfilter(df):
-    sim_threshold = 0.25
+    sim_threshold = 0.3
     import clip_filter
 
     clip = clip_filter.CLIP()
