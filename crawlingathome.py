@@ -46,7 +46,7 @@ def parse_wat(content):
                 continue
             url = e["url"]
             alt_text = ftfy.fix_text(e["alt"].replace("\n", " ")).strip()
-            if url.endswith(".svg") or url.endswith(".gif"):
+            if url.endswith(".svg") or url.endswith(".gif") or "data:image" in url:
                 continue
             try:
                 _, _, details = cld2.detect(alt_text)
@@ -75,7 +75,7 @@ def process_img_content(response, alt_text, sample_id):
         url_path = urlparse(response.url).path
         filetype = os.path.splitext(url_path)[1]
 
-    if "gif" in filetype or "svg" in filetype:
+    if "gif" in filetype or "svg" in filetype or len(response.content) > 5000:
         return
 
     out_fname = img_output_folder + str(sample_id) + "." + filetype.strip(".")
