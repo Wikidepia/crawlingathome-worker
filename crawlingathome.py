@@ -96,7 +96,7 @@ async def request_image(datas, start_sampleid):
     import asks
 
     tmp_data = []
-    session = asks.Session(connections=2048)
+    session = asks.Session(connections=512)
 
     async def _request(data, sample_id):
         url, alt_text = data
@@ -141,29 +141,31 @@ async def dl_wat(valid_data, first_sample_id):
 
 
 def df_clipfilter(df):
+    sim_threshold = 0.25
     import clip_filter
 
     clip = clip_filter.CLIP()
-
     img_embedding, similarities = clip.preprocess_images(df)
     nsfw_filters = clip.filter(img_embedding, clip.categories)
-    underage_filters = clip.filter(
-        img_embedding, clip.underaged_categories
-    )
+    underage_filters = clip.filter(img_embedding, clip.underaged_categories)
     # animal_filters = clip.filter(preprocessed_image["img_embedding"], clip.animal_categories)
     for i, (nsfw_prob, underage_prob) in enumerate(zip(nsfw_filters, underage_filters)):
 
         df.at[i, "similarity"] = similarities[i]
+        df.at[i, "NSFW"] = "UNSURE"
+
         # Review this please, my brain is too smol
         if nsfw_prob <= 19 and underage_prob >= 4:
             df.at[i, "NSFW"] = "UNLIKELY"
-        elif nsfw_prob > 19 or underage_prob < 4:
+        elif nsfw_prob > 19:
             df.at[i, "NSFW"] = "NSFW"
-        else:
-            df.at[i, "NSFW"] = "UNSURE"
+
+        # Remove image containing underage and not similar image-alttext
+        if similarities[i] < sim_threshold or underage_prob < 4:
+            df = df.drop(i)
     return df, img_embedding
 
-    
+
 def df_tfrecords(df, output_folder):
     import tensorflow as tf
     from tfr_image.utils import bytes_feature, int64_feature
@@ -256,7 +258,6 @@ if __name__ == "__main__":
     output_folder = "./save/"
     csv_output_folder = output_folder
     img_output_folder = output_folder + "images/"
-    similarity_threshold = 0.3
 
     while client.jobCount() > 0:
         start = time.time()
