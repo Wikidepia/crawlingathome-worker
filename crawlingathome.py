@@ -26,6 +26,7 @@ def remove_bad_chars(text):
 
 def parse_wat(content):
     import pycld2 as cld2
+    import ftfy
 
     valid_data = []
     for line in content:
@@ -44,7 +45,7 @@ def parse_wat(content):
             if "alt" not in e:
                 continue
             url = e["url"]
-            alt_text = e["alt"].encode("ascii", "ignore").decode()
+            alt_text = ftfy.fix_text(e["alt"].replace("\n", " ")).strip()
             if url.endswith(".svg") or url.endswith(".gif"):
                 continue
             try:
@@ -144,14 +145,15 @@ def df_clipfilter(df):
 
     clip = clip_filter.CLIP()
 
-    preprocessed_image = clip.preprocess_images(df)
-    nsfw_filters = clip.filter(preprocessed_image["img_embedding"], clip.categories)
+    img_embedding, similarities = clip.preprocess_images(df)
+    nsfw_filters = clip.filter(img_embedding, clip.categories)
     underage_filters = clip.filter(
-        preprocessed_image["img_embedding"], clip.underaged_categories
+        img_embedding, clip.underaged_categories
     )
     # animal_filters = clip.filter(preprocessed_image["img_embedding"], clip.animal_categories)
     for i, (nsfw_prob, underage_prob) in enumerate(zip(nsfw_filters, underage_filters)):
 
+        df.at[i, "similarity"] = similarities[i]
         # Review this please, my brain is too smol
         if nsfw_prob <= 19 and underage_prob >= 4:
             df.at[i, "NSFW"] = "UNLIKELY"
@@ -159,9 +161,9 @@ def df_clipfilter(df):
             df.at[i, "NSFW"] = "NSFW"
         else:
             df.at[i, "NSFW"] = "UNSURE"
-    return df, preprocessed_image["img_embedding"]
+    return df, img_embedding
 
-
+    
 def df_tfrecords(df, output_folder):
     import tensorflow as tf
     from tfr_image.utils import bytes_feature, int64_feature
@@ -235,7 +237,7 @@ def upload_gdrive(output_filename):
         "data": ("metadata", ujson.dumps(para), "application/json; charset=UTF-8"),
         "file": ("application/zip", open(output_filename, "rb")),
     }
-    r = requests.post(
+    requests.post(
         "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
         headers=headers,
         files=files,
