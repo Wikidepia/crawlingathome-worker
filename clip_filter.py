@@ -23,10 +23,11 @@ class CLIP:
         return rgbimg
 
     def _preprocess_images(self, ds):
-        ds["img_embedding"] = self.model.encode_image(
-            self.preprocess(self.load_img(ds["PATH"])).unsqueeze(0).to("cpu")
-        )
-        ds["text_embedding"] = self.model.encode_text(self.tokenize(ds["TEXT"][:76]).to("cpu"))
+        with torch.no_grad():
+            ds["img_embedding"] = self.model.encode_image(
+                self.preprocess(self.load_img(ds["PATH"])).unsqueeze(0).to("cpu")
+            )
+            ds["text_embedding"] = self.model.encode_text(self.tokenize(ds["TEXT"][:76]).to("cpu"))
         ds["similarity"] = float(self.cosine_similarity(torch.reshape(ds["text_embedding"], (1, 512)), ds["img_embedding"])) 
         return ds
 
