@@ -81,7 +81,7 @@ def process_img_content(response, alt_text, license, sample_id):
         filetype == ""
         or "gif" in filetype
         or "svg" in filetype
-        or len(response.content) > 5000
+        or len(response.content) < 5000
     ):
         return
 
