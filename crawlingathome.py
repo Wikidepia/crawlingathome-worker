@@ -73,10 +73,10 @@ def process_img_content(response, alt_text, license, sample_id):
             return
         filetype = (
             response.headers["content-type"].split("/")[-1].split(";")[0]
-        )  # Unreliable, maybe get filetype from content?
+        ).strip()  # Unreliable, maybe get filetype from content?
     else:
         url_path = urlparse(response.url).path
-        filetype = os.path.splitext(url_path)[1]
+        filetype = os.path.splitext(url_path)[1].strip()
 
     if (
         filetype == ""
@@ -88,10 +88,10 @@ def process_img_content(response, alt_text, license, sample_id):
 
     out_fname = img_output_folder + str(sample_id) + "." + filetype.strip(".")
     try:
-        img_data = BytesIO(response.content)  # Raise KeyError
-        img_data.name = str(sample_id) + "." + filetype.strip(".")
-        pil_image = Image.open(img_data).convert("RGB")  # Raise UnidentifiedImageError
-        pil_image.save(out_fname)
+        img_data = response.content  # Raise KeyError
+        with open(out_fname, "wb") as f:
+            f.write(img_data)
+        pil_image = Image.open(out_fname)  # Raise UnidentifiedImageError
     except (KeyError, UnidentifiedImageError) as e:
         if os.path.exists(out_fname):
             os.remove(out_fname)
