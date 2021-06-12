@@ -5,10 +5,10 @@ from PIL import Image
 
 import clip
 
-
+device = "cuda" if torch.cuda.is_available() else "cpu"
 class CLIP:
     def __init__(self):
-        self.model, self.preprocess = clip.load("ViT-B/32", device="cpu", jit=False)
+        self.model, self.preprocess = clip.load("ViT-B/32", device=device, jit=False)
         self.model = torch.quantization.quantize_dynamic(self.model, dtype=torch.qint8)
         self.tokenize = clip.tokenize
         self.cosine_similarity = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
@@ -25,9 +25,9 @@ class CLIP:
     def _preprocess_images(self, ds):
         with torch.no_grad():
             ds["img_embedding"] = self.model.encode_image(
-                self.preprocess(self.load_img(ds["PATH"])).unsqueeze(0).to("cpu")
+                self.preprocess(self.load_img(ds["PATH"])).unsqueeze(0).to(device)
             )
-            ds["text_embedding"] = self.model.encode_text(self.tokenize(ds["TEXT"][:76]).to("cpu"))
+            ds["text_embedding"] = self.model.encode_text(self.tokenize(ds["TEXT"][:76]).to(device))
         ds["similarity"] = float(self.cosine_similarity(torch.reshape(ds["text_embedding"], (1, 512)), ds["img_embedding"])) 
         return ds
 
@@ -38,11 +38,11 @@ class CLIP:
 
     def filter(self, img_embeddings, classes):
         ret = []
-        text = self.model.encode_text(self.tokenize(classes).to("cpu"))
+        text = self.model.encode_text(self.tokenize(classes).to(device))
 
         with torch.no_grad():
             for emb in img_embeddings:
-                logits_per_image, _ = self.model(torch.as_tensor(emb), text)
+                logits_per_image, _ = self.model(torch.as_tensor(emb).to(device), text.float())
                 probs = logits_per_image.softmax(dim=-1).cpu().numpy()
                 ret.append(np.argmax(probs))
         return ret
