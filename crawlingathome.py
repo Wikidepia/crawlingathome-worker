@@ -4,6 +4,7 @@ import pickle
 import shutil
 import time
 from glob import glob
+from io import BytesIO
 from urllib.parse import urljoin, urlparse
 from uuid import uuid1
 
@@ -25,8 +26,8 @@ def remove_bad_chars(text):
 
 
 def parse_wat(content):
-    import pycld2 as cld2
     import ftfy
+    import pycld2 as cld2
 
     valid_data = []
     for line in content:
@@ -87,10 +88,10 @@ def process_img_content(response, alt_text, license, sample_id):
 
     out_fname = img_output_folder + str(sample_id) + "." + filetype.strip(".")
     try:
-        img_data = response.content  # Raise KeyError
-        with open(out_fname, "wb") as f:
-            f.write(img_data)
-        pil_image = Image.open(out_fname)  # Raise UnidentifiedImageError
+        img_data = BytesIO(response.content)  # Raise KeyError
+        img_data.name = str(sample_id) + "." + filetype.strip(".")
+        pil_image = Image.open(img_data).convert("RGB")  # Raise UnidentifiedImageError
+        pil_image.save(out_fname)
     except (KeyError, UnidentifiedImageError) as e:
         if os.path.exists(out_fname):
             os.remove(out_fname)
@@ -173,7 +174,7 @@ def df_clipfilter(df):
     return df, img_embedding
 
 
-def df_tfrecords(df, output_folder):
+def df_tfrecords(df, output_fname):
     import tensorflow as tf
     from tfr_image.utils import bytes_feature, int64_feature
 
@@ -191,7 +192,7 @@ def df_tfrecords(df, output_folder):
             )
         )
 
-    with tf.io.TFRecordWriter(output_folder + "images.tfrecord") as tfrecord_writer:
+    with tf.io.TFRecordWriter(output_fname) as tfrecord_writer:
         for i in range(len(df)):
             df_image = df.iloc[i]
             image_fname = df_image["PATH"]
@@ -281,23 +282,25 @@ if __name__ == "__main__":
         client.downloadShard()
         first_sample_id = int(client.start_id)
         last_sample_id = int(client.end_id)
+        shard_of_chunk = client.shard_piece
 
+        out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
         client.log("Processing shard")
         with open("shard.wat", "r") as infile:
             parsed_data = parse_wat(infile)
 
         client.log("Downloading images")
         dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
-        dlparse_df.to_csv(output_folder + "image.csv")
+        dlparse_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
 
         client.log("Dropping NSFW keywords")
         filtered_df, img_embeddings = df_clipfilter(dlparse_df)
-        filtered_df.to_csv(output_folder + "image.csv")
-        with open(output_folder + "image_embeddings.pkl", "wb") as f:
+        filtered_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
+        with open(f"{output_folder}image_embedding_dict-{out_fname}.pkl", "wb") as f:
             pickle.dump(img_embeddings, f)
 
         client.log("Saving TFRs")
-        df_tfrecords(filtered_df, output_folder)
+        df_tfrecords(filtered_df, f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord")
         # upload_gdrive(output_folder + "image_embeddings.pkl")
         # upload_gdrive(output_folder + "images.tfrecord")
         client._markjobasdone(len(filtered_df))
