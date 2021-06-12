@@ -135,9 +135,9 @@ async def dl_wat(valid_data, first_sample_id):
     # Download every image available
     processed_samples = []
     async with tractor.open_nursery() as n:
-        for i, data in enumerate(chunk_using_generators(valid_data, 4096)):
+        for i, data in enumerate(chunk_using_generators(valid_data, 8192)):
             await n.run_in_actor(
-                request_image, datas=data, start_sampleid=i * 4096 + first_sample_id
+                request_image, datas=data, start_sampleid=i * 8192 + first_sample_id
             )
 
     for tmpf in glob(".tmp/*.json"):
@@ -282,7 +282,7 @@ if __name__ == "__main__":
         client.downloadShard()
         first_sample_id = int(client.start_id)
         last_sample_id = int(client.end_id)
-        shard_of_chunk = client.shard_piece
+        shard_of_chunk = client.shard_piece # TODO
 
         out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
         client.log("Processing shard")
