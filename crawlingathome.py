@@ -77,7 +77,12 @@ def process_img_content(response, alt_text, license, sample_id):
         url_path = urlparse(response.url).path
         filetype = os.path.splitext(url_path)[1]
 
-    if "gif" in filetype or "svg" in filetype or len(response.content) > 5000:
+    if (
+        filetype == ""
+        or "gif" in filetype
+        or "svg" in filetype
+        or len(response.content) > 5000
+    ):
         return
 
     out_fname = img_output_folder + str(sample_id) + "." + filetype.strip(".")
