@@ -4,7 +4,6 @@ import pickle
 import shutil
 import time
 from glob import glob
-from io import BytesIO
 from urllib.parse import urljoin, urlparse
 from uuid import uuid1
 
@@ -78,12 +77,7 @@ def process_img_content(response, alt_text, license, sample_id):
         url_path = urlparse(response.url).path
         filetype = os.path.splitext(url_path)[1].strip()
 
-    if (
-        filetype == ""
-        or "gif" in filetype
-        or "svg" in filetype
-        or len(response.content) < 5000
-    ):
+    if filetype not in ["jpeg", "jpg", "png"] or len(response.content) < 5000:
         return
 
     out_fname = img_output_folder + str(sample_id) + "." + filetype.strip(".")
@@ -300,7 +294,10 @@ if __name__ == "__main__":
             pickle.dump(img_embeddings, f)
 
         client.log("Saving TFRs")
-        df_tfrecords(filtered_df, f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord")
+        df_tfrecords(
+            filtered_df,
+            f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord",
+        )
         # upload_gdrive(output_folder + "image_embeddings.pkl")
         # upload_gdrive(output_folder + "images.tfrecord")
         client._markjobasdone(len(filtered_df))
