@@ -11,7 +11,6 @@ import regex
 import trio
 import ujson
 from PIL import Image, ImageFile, UnidentifiedImageError
-import imghdr
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
@@ -35,8 +34,12 @@ def parse_wat(content):
             continue
         line_str = line.strip()
         data = ujson.loads(line_str)
-        linklist = data["Envelope"]["Payload-Metadata"]["HTTP-Response-Metadata"]["HTML-Metadata"]["Links"]
-        base_url = os.path.dirname(data["Envelope"]["WARC-Header-Metadata"]["WARC-Target-URI"])  # get base url
+        linklist = data["Envelope"]["Payload-Metadata"]["HTTP-Response-Metadata"][
+            "HTML-Metadata"
+        ]["Links"]
+        base_url = os.path.dirname(
+            data["Envelope"]["WARC-Header-Metadata"]["WARC-Target-URI"]
+        )  # get base url
         license = "?"
         for e in linklist:
             if "url" in e and "creativecommons.org/licenses/" in e["url"]:
@@ -57,26 +60,33 @@ def parse_wat(content):
                 if not url.startswith("http"):
                     url = urljoin(base_url, url)
                 valid_data.append((url, alt_text, license))
-    return [t for t in {tuple(i) for i in valid_data}]  # Remove duplicate tuple from list
+    return [
+        t for t in {tuple(i) for i in valid_data}
+    ]  # Remove duplicate tuple from list
 
 
 def process_img_content(response, alt_text, license, sample_id):
     img_output_folder = "save/images/"
-    try:
-        img_data = response.content  # Raise KeyError
-        filetype = imghdr(None, h=response.content)
-    except KeyError:
-        return
+    if "content-type" in response.headers:
+        if "image/" not in response.headers["content-type"]:
+            return
+        filetype = (
+            response.headers["content-type"].split("/")[-1].split(";")[0]
+        )  # Unreliable, maybe get filetype from content?
+    else:
+        url_path = urlparse(response.url).path
+        filetype = os.path.splitext(url_path)[1]
 
-    if filetype is None or "gif" in filetype or "svg" in filetype or len(img_data) > 5000:
+    if "gif" in filetype or "svg" in filetype or len(response.content) > 5000:
         return
 
     out_fname = img_output_folder + str(sample_id) + "." + filetype.strip(".")
     try:
+        img_data = response.content  # Raise KeyError
         with open(out_fname, "wb") as f:
             f.write(img_data)
         pil_image = Image.open(out_fname)  # Raise UnidentifiedImageError
-    except UnidentifiedImageError:
+    except (KeyError, UnidentifiedImageError) as e:
         if os.path.exists(out_fname):
             os.remove(out_fname)
         return
@@ -93,7 +103,9 @@ async def request_image(datas, start_sampleid):
     async def _request(data, sample_id):
         url, alt_text, license = data
         try:
-            proces = process_img_content(await session.get(url, timeout=5), alt_text, license, sample_id)
+            proces = process_img_content(
+                await session.get(url, timeout=5), alt_text, license, sample_id
+            )
             if proces is not None:
                 tmp_data.append(proces)
         except Exception:
@@ -118,7 +130,9 @@ async def dl_wat(valid_data, first_sample_id):
     processed_samples = []
     async with tractor.open_nursery() as n:
         for i, data in enumerate(chunk_using_generators(valid_data, 4096)):
-            await n.run_in_actor(request_image, datas=data, start_sampleid=i * 4096 + first_sample_id)
+            await n.run_in_actor(
+                request_image, datas=data, start_sampleid=i * 4096 + first_sample_id
+            )
 
     for tmpf in glob(".tmp/*.json"):
         processed_samples.extend(ujson.load(open(tmpf)))
@@ -193,11 +207,11 @@ def df_tfrecords(df, output_folder):
 def upload_gdrive(output_filename):
     import requests
 
-    client_id = "648172777761-onv1nc5f93nhlhf63flsq6onrmjphpfo.apps.googleusercontent.com"
-    client_secret = "HZ4Zw-_jVJ-3mwicz1NM5W5x"
-    refresh_token = (
-        "1//04N2Kysz1LObLCgYIARAAGAQSNwF-L9IrntHNWi2_nEVu2QX5fmlW0Ea0qA-ToBJLSdatDATYxiKcNFI8eZQ_fYN53gjF7b8MGmA"
+    client_id = (
+        "648172777761-onv1nc5f93nhlhf63flsq6onrmjphpfo.apps.googleusercontent.com"
     )
+    client_secret = "HZ4Zw-_jVJ-3mwicz1NM5W5x"
+    refresh_token = "1//04N2Kysz1LObLCgYIARAAGAQSNwF-L9IrntHNWi2_nEVu2QX5fmlW0Ea0qA-ToBJLSdatDATYxiKcNFI8eZQ_fYN53gjF7b8MGmA"
 
     def refresh_gdrive_token():
         params = {
@@ -240,7 +254,9 @@ if __name__ == "__main__":
     YOUR_NICKNAME_FOR_THE_LEADERBOARD = "Wikidepia"
     CRAWLINGATHOME_SERVER_URL = "http://178.63.68.247:8181/"
 
-    client = cah.init(url=CRAWLINGATHOME_SERVER_URL, nickname=YOUR_NICKNAME_FOR_THE_LEADERBOARD)
+    client = cah.init(
+        url=CRAWLINGATHOME_SERVER_URL, nickname=YOUR_NICKNAME_FOR_THE_LEADERBOARD
+    )
     output_folder = "./save/"
     csv_output_folder = output_folder
     img_output_folder = output_folder + "images/"
