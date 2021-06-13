@@ -6,6 +6,8 @@ from PIL import Image
 import clip
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
+
+
 class CLIP:
     def __init__(self):
         self.model, self.preprocess = clip.load("ViT-B/32", device=device, jit=False)
@@ -22,19 +24,43 @@ class CLIP:
         rgbimg.paste(image)
         return rgbimg
 
-    def _preprocess_images(self, ds):
+    def _preprocess_images(self, batch):
+        similarity = []
+        images = [
+            self.preprocess(self.load_img(path)).unsqueeze(0).to(device)
+            for path in batch["PATH"]
+        ]
+        texts = [self.tokenize(text[:77]).to(device) for text in batch["TEXT"]]
+
         with torch.no_grad():
-            ds["img_embedding"] = self.model.encode_image(
-                self.preprocess(self.load_img(ds["PATH"])).unsqueeze(0).to(device)
+            batch["image_features"] = self.model.encode_image(
+                torch.cat([x.float() for x in images])
             )
-            ds["text_embedding"] = self.model.encode_text(self.tokenize(ds["TEXT"][:76]).to(device))
-        ds["similarity"] = float(self.cosine_similarity(torch.reshape(ds["text_embedding"], (1, 512)), ds["img_embedding"])) 
-        return ds
+            batch["text_features"] = self.model.encode_text(
+                torch.cat([x for x in texts])
+            )
+
+        for image_feat, text_feat in zip(
+            batch["image_features"], batch["text_features"]
+        ):
+            similarity.append(
+                float(
+                    self.cosine_similarity(
+                        torch.reshape(text_feat, (1, 512)),
+                        torch.reshape(image_feat, (1, 512)),
+                    )
+                )
+            )
+
+        batch["similarity"] = similarity
+        batch["image_features"] = batch["image_features"].detach().cpu().numpy()
+        batch["text_features"] = batch["text_features"].detach().cpu().numpy()
+        return batch
 
     def preprocess_images(self, df):
         im_dataset = Dataset.from_pandas(df)
-        im_dataset = im_dataset.map(self._preprocess_images)
-        return im_dataset["img_embedding"], im_dataset["similarity"]
+        im_dataset = im_dataset.map(self._preprocess_images, batched=True, batch_size=8)
+        return im_dataset["image_features"], im_dataset["similarity"]
 
     def filter(self, img_embeddings, classes):
         ret = []
@@ -42,7 +68,9 @@ class CLIP:
 
         with torch.no_grad():
             for emb in img_embeddings:
-                logits_per_image, _ = self.model(torch.as_tensor(emb).to(device), text.float())
+                logits_per_image, _ = self.model(
+                    torch.as_tensor(emb).to(device), text.float()
+                )
                 probs = logits_per_image.softmax(dim=-1).cpu().numpy()
                 ret.append(np.argmax(probs))
         return ret
