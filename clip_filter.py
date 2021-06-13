@@ -60,7 +60,7 @@ class CLIP:
 
     def filter(self, img_embeddings, classes):
         ret = []
-        text = self.model.encode_text(self.tokenize(classes).to(device))
+        text = self.model.encode_text(clip.tokenize(classes).to(device))
 
         with torch.no_grad():
             for emb in img_embeddings:
