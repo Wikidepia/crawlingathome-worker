@@ -13,7 +13,6 @@ class CLIP:
         self.model, self.preprocess = clip.load("ViT-B/32", device=device, jit=False)
         if device == "cpu":
             self.model = torch.quantization.quantize_dynamic(self.model, dtype=torch.qint8)
-        self.tokenize = clip.tokenize
         self.cosine_similarity = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
 
     def load_img(self, path):
@@ -28,7 +27,7 @@ class CLIP:
             self.preprocess(self.load_img(path)).unsqueeze(0).to(device)
             for path in batch["PATH"]
         ]
-        texts = [self.tokenize(text[:77]).to(device) for text in batch["TEXT"]]
+        texts = [clip.tokenize(text[:77]).to(device) for text in batch["TEXT"]]
 
         with torch.no_grad():
             image_features = self.model.encode_image(
@@ -37,6 +36,7 @@ class CLIP:
             text_features = self.model.encode_text(torch.cat([x for x in texts]))
 
         for image_feat, text_feat in zip(image_features, text_features):
+            # XXX Not sure about this one
             similarity.append(
                 float(
                     self.cosine_similarity(
