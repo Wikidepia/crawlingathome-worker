@@ -77,7 +77,7 @@ def process_img_content(response, alt_text, license, sample_id):
         url_path = urlparse(response.url).path
         filetype = os.path.splitext(url_path)[1].strip()
 
-    if any(filetype != x for x in ["jpeg", "jpg", "png"]) or len(response.content) < 5000:
+    if filetype not in ["jpeg", "jpg", "png"] or len(response.content) < 5000:
         return
 
     out_fname = img_output_folder + str(sample_id) + "." + filetype.strip(".")
