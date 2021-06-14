@@ -99,7 +99,7 @@ async def request_image(datas, start_sampleid):
     import asks
 
     tmp_data = []
-    session = asks.Session(connections=512)
+    session = asks.Session(connections=64)
 
     async def _request(data, sample_id):
         url, alt_text, license = data
@@ -130,9 +130,9 @@ async def dl_wat(valid_data, first_sample_id):
     # Download every image available
     processed_samples = []
     async with tractor.open_nursery() as n:
-        for i, data in enumerate(chunk_using_generators(valid_data, 8192)):
+        for i, data in enumerate(chunk_using_generators(valid_data, 65536)):
             await n.run_in_actor(
-                request_image, datas=data, start_sampleid=i * 8192 + first_sample_id
+                request_image, datas=data, start_sampleid=i * 65536 + first_sample_id
             )
 
     for tmpf in glob(".tmp/*.json"):
