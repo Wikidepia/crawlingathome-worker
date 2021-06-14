@@ -163,7 +163,7 @@ def df_clipfilter(df):
             df.at[i, "NSFW"] = "NSFW"
 
         # Remove image containing underage and not similar image-alttext
-        if similarities[i] < sim_threshold or underage_prob < 4:
+        if similarities[i] < sim_threshold or (underage_prob < 4 and nsfw_prob > 19):
             df = df.drop(i)
     return df, img_embedding
 
@@ -194,7 +194,7 @@ def df_tfrecords(df, output_fname):
             with tf.io.gfile.GFile(image_fname, "rb") as f:
                 image_data = f.read()
             example = image_to_tfexample(
-                df_image["SAMPLE_ID"].encode("utf_8"),
+                str(df_image["SAMPLE_ID"]).encode("utf_8"),
                 image_data,
                 file_type.encode("utf_8"),
                 df_image["HEIGHT"],
@@ -276,7 +276,7 @@ if __name__ == "__main__":
         client.downloadShard()
         first_sample_id = int(client.start_id)
         last_sample_id = int(client.end_id)
-        shard_of_chunk = client.shard_piece # TODO
+        shard_of_chunk = client.shard_piece  # TODO
 
         out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
         client.log("Processing shard")
