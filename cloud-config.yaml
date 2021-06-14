@@ -1,0 +1,73 @@
+#cloud-config
+users:
+  - default
+  - name: crawl
+    groups: users, adm
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC0Ff0RcDRafX/VyxYJTeMWJrJGHIKvAvIG+nUmUR73iQFcwF7JP8FucLO0baVIPb029DI469SOZJWh6FTwt5T+IT5jm0UDAs2gwYClS+tRbohr27kXoILhlugFiCor4TD0mMhBTKme4RPLlcbLYaZq4r7Rep0rbWn46f3Gma2fDXgpy3v1JZBa30yHxQVO+s2UjbqPk9RcsWNQ7oap36yGrVb6Bc8ucwAM6pGTdJMQBZoTj0tgI/b9cSgKO1JRyUTt6HhuW+DDfrOuZPJLqOq0f5sNV0gD+89K9zNEtZeO+bpQuZvf+cwhb10XQc4t0Yd8EsyhxSbWbdvn6Utb9yQwmk7ThJkxLLLmDp5LtClOvp6PTFUooDjj3DgFfD8ZBK+sckwu1TPAKa8Y8jU+q4GfF5abAej5rXObVjVcKHsziBSsSG6yViVtoFAvqh0dYfM/Ujz7dj6KtfRs67J5X+8CJvvKokRZcjMs6neJNHoRll5t6K/uhQgKHvBRpFqL9kGS4hTEdJog47w9o8qmLTMYQ340ckEZkRh/c1lWu51wNycLW1iab40D2F/ymMihGxMo9AqHKoqE/cnh9SaZr1EGr7s4BhBnAvyOwHh2+sW5ndOenDOZ1wGbYbwVJznSG8I1tdlJzEjf2GuW1HZtxE/95yW0zlEQkue8mBfNUL+Q6Q==
+package_update: true
+package_upgrade: true
+runcmd:
+ - [ ls, -l, / ]
+ - [ sh, -xc, "echo $(date) ': hello crawl!'" ]
+ - [ sh, -c, echo "=========hello crawl'=========" ]
+ - ls -l /root
+ # make swap file so tensorflow and pytorch can install
+ - fallocate -l 5G /swapfile
+ - chmod 600 /swapfile
+ - mkswap /swapfile
+ - swapon /swapfile
+ - cp /etc/fstab /etc/fstab.bak
+ - 'echo "/swapfile none swap sw 0 0" | tee -a /etc/fstab'
+ - sysctl vm.swappiness=75
+ - 'echo "vm.swappiness=75" | tee -a /etc/sysctl.conf'
+# install prerequisite libs
+ - 'yes | sudo apt install python3-pip git build-essential libssl-dev libffi-dev python3-dev libwebp-dev'
+# take care of max open files
+ - echo "* soft     nproc          65535 " >> /etc/security/limits.conf
+ - echo "* hard     nproc          65535 " >> /etc/security/limits.conf
+ - echo "* soft     nofile         65535" >> /etc/security/limits.conf
+ - echo "* hard     nofile         65535" >> /etc/security/limits.conf
+ - echo "root soft     nproc          65535 " >> /etc/security/limits.conf
+ - echo "root hard     nproc          65535 " >> /etc/security/limits.conf
+ - echo "root soft     nofile         65535" >> /etc/security/limits.conf
+ - echo "root hard     nofile         65535" >> /etc/security/limits.conf
+ - echo "session required pam_limits.so" >> /etc/pam.d/common-session
+ - echo "fs.file-max = 2097152" >> /etc/sysctl.conf
+# secure ssh
+ - sed -i -e '/^\(#\|\)PermitRootLogin/s/^.*$/PermitRootLogin no/' /etc/ssh/sshd_config
+ - sed -i -e '/^\(#\|\)PasswordAuthentication/s/^.*$/PasswordAuthentication no/' /etc/ssh/sshd_config
+ - sed -i -e '/^\(#\|\)X11Forwarding/s/^.*$/X11Forwarding no/' /etc/ssh/sshd_config
+ - sed -i -e '/^\(#\|\)MaxAuthTries/s/^.*$/MaxAuthTries 2/' /etc/ssh/sshd_config
+ - sed -i -e '/^\(#\|\)AllowTcpForwarding/s/^.*$/AllowTcpForwarding no/' /etc/ssh/sshd_config
+ - sed -i -e '/^\(#\|\)AllowAgentForwarding/s/^.*$/AllowAgentForwarding no/' /etc/ssh/sshd_config
+ - sed -i -e '/^\(#\|\)AuthorizedKeysFile/s/^.*$/AuthorizedKeysFile .ssh\/authorized_keys/' /etc/ssh/sshd_config
+ - sed -i '$a AllowUsers crawl' /etc/ssh/sshd_config
+ # install the script
+ - cd /home/crawl
+ - git clone https://github.com/Wikidepia/crawlingathome-worker
+ - cd crawlingathome-worker
+ - bash setup.sh
+ # make the script run as a service at startup
+ - echo "[Unit]" >> /etc/systemd/system/crawl.service
+ - echo "After=network.service" >> /etc/systemd/system/crawl.service
+ - echo "Description=Crawling @ Home" >> /etc/systemd/system/crawl.service
+ - echo "[Service]" >> /etc/systemd/system/crawl.service
+ - echo "Type=simple" >> /etc/systemd/system/crawl.service
+ - echo "LimitNOFILE=2097152" >> /etc/systemd/system/crawl.service
+ - echo "WorkingDirectory=/home/crawl" >> /etc/systemd/system/crawl.service
+ - echo "ExecStart=/home/crawl/crawl.sh" >> /etc/systemd/system/crawl.service
+ - echo "User=crawl" >> /etc/systemd/system/crawl.service
+ - echo "[Install]" >> /etc/systemd/system/crawl.service
+ - echo "WantedBy=multi-user.target" >> /etc/systemd/system/crawl.service
+ - chmod 664 /etc/systemd/system/crawl.service
+ - systemctl daemon-reload
+ - systemctl enable crawl.service
+ - echo "#!/bin/bash" >> /home/crawl/crawl.sh
+ - echo "python3 -u /home/crawl/crawlingathome-worker/crawlingathome.py >> /home/crawl/crawl.log 2>&1" >> /home/crawl/crawl.sh
+ - chmod 744 /home/crawl/crawl.sh
+ - chown crawl:adm -R /home/crawl/
+ - reboot
+final_message: "The system is finally up, after $UPTIME seconds"

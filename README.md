@@ -10,6 +10,10 @@
 4. `. setup.sh`, to install dependencies.
 5. `python3 crawlingathome.py`, to start Crawling!
 
+## Droplet Setup
+1. use `cloud-config.yaml` script to init the droplet. remember to change to your SSH privatekey in line 9
+2. ssh with user `crawl` and check the script by running `tail -f crawl.log`
+
 ## TODO
 - [x] Save image embedding 
 - [x] Convert images to tfrecords
