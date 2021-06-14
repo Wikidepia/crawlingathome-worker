@@ -141,3 +141,5 @@ cython_debug/
 CLOP
 clip
 crawlingathome_client
+save/*
+*.wat
