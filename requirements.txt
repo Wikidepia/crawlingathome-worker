@@ -5,10 +5,7 @@ pandas
 Pillow
 pycld2
 regex
-tensorflow
 tfr_image
-torch==1.7.1
-torchvision==0.8.2
 tractor
 trio
 ujson
