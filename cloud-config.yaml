@@ -49,12 +49,7 @@ runcmd:
  - cd /home/crawl
  - git clone https://github.com/Wikidepia/crawlingathome-worker
  - cd crawlingathome-worker
- - git clone "https://github.com/Wikidepia/CLIP" CLOP
- - mv CLOP/clip .
- - rm -rf CLOP
- - git clone "https://github.com/TheoCoombes/crawlingathome" crawlingathome_client
- - pip3 install -r crawlingathome_client/requirements.txt
- - pip3 install -r requirements.txt
+ - bash setup.sh
  # make the script run as a service at startup
  - echo "[Unit]" >> /etc/systemd/system/crawl.service
  - echo "After=network.service" >> /etc/systemd/system/crawl.service
