@@ -71,5 +71,5 @@ class CLIP:
                     torch.as_tensor(emb).to(device), text.float()
                 )
                 probs = logits_per_image.softmax(dim=-1).cpu().numpy()
-                ret.append(np.argmax(probs))
+                ret.append((-probs).argsort())
         return ret

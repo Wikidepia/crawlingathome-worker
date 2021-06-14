@@ -11,6 +11,7 @@ import regex
 import trio
 import ujson
 from PIL import Image, ImageFile, UnidentifiedImageError
+from copy import copy
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
@@ -144,27 +145,41 @@ async def dl_wat(valid_data, first_sample_id):
 
 def df_clipfilter(df):
     sim_threshold = 0.3
+    underaged_text = ["teen", "kid", "child", "baby"]
     import clip_filter
 
     clip = clip_filter.CLIP()
     img_embedding, similarities = clip.preprocess_images(df)
     nsfw_filters = clip.filter(img_embedding, clip.categories)
     underage_filters = clip.filter(img_embedding, clip.underaged_categories)
-    # animal_filters = clip.filter(preprocessed_image["img_embedding"], clip.animal_categories)
-    for i, (nsfw_prob, underage_prob) in enumerate(zip(nsfw_filters, underage_filters)):
-
+    animal_filters = clip.filter(img_embedding, clip.animal_categories)
+    tmp_embed = copy(img_embedding)
+    for i, (nsfw_prob, underage_prob, animal_prob, img_embed) in enumerate(
+        zip(nsfw_filters, underage_filters, animal_filters, tmp_embed)
+    ):
         df.at[i, "similarity"] = similarities[i]
         df.at[i, "NSFW"] = "UNSURE"
 
-        # XXX Review this please, my brain is too smol
-        if nsfw_prob <= 19 and underage_prob >= 4:
+        if nsfw_prob[0] < 19 and nsfw_prob[1] < 19:
             df.at[i, "NSFW"] = "UNLIKELY"
-        elif nsfw_prob > 19:
+        elif nsfw_prob[0] >= 19 and nsfw_prob[1] >= 19:
             df.at[i, "NSFW"] = "NSFW"
 
+        # If image is nsfw and text is containing underaged or image is containing underage or image is containing animal
+        is_nsfw_underaged = (
+            df.at[i, "NSFW"] == "NSFW" or df.at[i, "NSFW"] == "UNSURE"
+        ) and (
+            underage_prob[0] < 4
+            or underage_prob[1] < 4
+            or any(x in df.at[i, "TEXT"] for x in underaged_text)
+            or animal_prob[0] > 20
+        )
+
         # Remove image containing underage and not similar image-alttext
-        if similarities[i] < sim_threshold or (underage_prob < 4 and nsfw_prob > 19):
-            df = df.drop(i)
+        if similarities[i] < sim_threshold or is_nsfw_underaged:
+            df.drop(i, inplace=True)
+            img_embedding.remove(img_embed)
+    df.reset_index(drop=True, inplace=True)
     return df, img_embedding
 
 
@@ -290,8 +305,12 @@ if __name__ == "__main__":
         client.log("Dropping NSFW keywords")
         filtered_df, img_embeddings = df_clipfilter(dlparse_df)
         filtered_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
+        img_embeds_sampleid = {}
+        for i, img_embed_it in enumerate(img_embeddings):
+            dfid_index = filtered_df.at[i, "SAMPLE_ID"]
+            img_embeds_sampleid[str(dfid_index)] = img_embed_it
         with open(f"{output_folder}image_embedding_dict-{out_fname}.pkl", "wb") as f:
-            pickle.dump(img_embeddings, f)
+            pickle.dump(img_embeds_sampleid, f)
 
         client.log("Saving TFRs")
         df_tfrecords(
