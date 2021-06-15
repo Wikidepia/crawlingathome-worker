@@ -19,6 +19,6 @@
 - [x] Convert images to tfrecords
 - [x] Upload to google drive
 - [x] Prevent corrupt image to be processed
-- [ ] Shard of chunk (it needs to read all WAT file which will be bad for low ram server)
+- [x] Shard of chunk (it needs to read all WAT file which will be bad for low ram server)
 - [x] Crawling@Home integration
 - [ ] Verify output
