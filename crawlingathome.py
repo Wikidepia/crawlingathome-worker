@@ -295,6 +295,14 @@ if __name__ == "__main__":
     csv_output_folder = output_folder
     img_output_folder = output_folder + "images/"
 
+    def cah_log(msg):
+        for _ in range(3):
+            try:
+                return client.log(msg)
+            except crawlingathome_client.errors.ServerError:
+                time.sleep(1)
+                continue
+
     while client.jobCount() > 0:
         start = time.time()
         if os.path.exists(output_folder):
@@ -322,15 +330,15 @@ if __name__ == "__main__":
         lines = int(len(fd)*0.5)
 
         out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
-        client.log("Processing shard")
+        cah_log("Processing shard")
         with open("shard.wat", "r") as infile:
             parsed_data = parse_wat(infile, start_index, lines)
 
-        client.log("Downloading images")
+        cah_log("Downloading images")
         dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
         dlparse_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
 
-        client.log("Dropping NSFW keywords")
+        cah_log("Dropping NSFW keywords")
         filtered_df, img_embeddings = df_clipfilter(dlparse_df)
         filtered_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
         img_embeds_sampleid = {}
@@ -340,7 +348,7 @@ if __name__ == "__main__":
         with open(f"{output_folder}image_embedding_dict-{out_fname}.pkl", "wb") as f:
             pickle.dump(img_embeds_sampleid, f)
 
-        client.log("Saving TFRs")
+        cah_log("Saving TFRs")
         df_tfrecords(
             filtered_df,
             f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord",
