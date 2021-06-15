@@ -285,8 +285,8 @@ class FileData:
 if __name__ == "__main__":
     import crawlingathome_client as cah
 
-    YOUR_NICKNAME_FOR_THE_LEADERBOARD = "Wikidepia"
-    CRAWLINGATHOME_SERVER_URL = "http://178.63.68.247:8181/"
+    YOUR_NICKNAME_FOR_THE_LEADERBOARD = "Wiki_live_test"
+    CRAWLINGATHOME_SERVER_URL = "http://crawlingathome.duckdns.org/"
 
     client = cah.init(
         url=CRAWLINGATHOME_SERVER_URL, nickname=YOUR_NICKNAME_FOR_THE_LEADERBOARD
@@ -330,6 +330,7 @@ if __name__ == "__main__":
         lines = int(len(fd)*0.5)
 
         out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
+        print (f"[crawling@home] shard identification {out_name}") # in case test fails, we need to remove bad data
         cah_log("Processing shard")
         with open("shard.wat", "r") as infile:
             parsed_data = parse_wat(infile, start_index, lines)
@@ -349,11 +350,13 @@ if __name__ == "__main__":
             pickle.dump(img_embeds_sampleid, f)
 
         cah_log("Saving TFRs")
+        print (f"[crawling@home] downloaded images: {len(dlparse_df)}")
+        print (f"[crawling@home] filtered pairs: {len(filtered_df)}")
         df_tfrecords(
             filtered_df,
             f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord",
         )
-        # upload_gdrive(output_folder + "image_embeddings.pkl")
-        # upload_gdrive(output_folder + "images.tfrecord")
+        upload_gdrive(output_folder + "image_embeddings.pkl")
+        upload_gdrive(output_folder + "images.tfrecord")
         client._markjobasdone(len(filtered_df))
         print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")

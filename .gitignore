@@ -143,3 +143,5 @@ clip
 crawlingathome_client
 save/*
 *.wat
+hcloud-python
+hcloud
