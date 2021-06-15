@@ -350,6 +350,8 @@ if __name__ == "__main__":
             pickle.dump(img_embeds_sampleid, f)
 
         cah_log("Saving TFRs")
+        print (f"[crawling@home] downloaded images: {len(dlparse_df)}")
+        print (f"[crawling@home] filtered pairs: {len(filtered_df)}")
         df_tfrecords(
             filtered_df,
             f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord",
