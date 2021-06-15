@@ -25,12 +25,14 @@ def remove_bad_chars(text):
     return regex.sub(r"\p{Cc}|\p{Cs}", "", text)
 
 
-def parse_wat(content):
+def parse_wat(content, start, line_count):
     import ftfy
     import pycld2 as cld2
 
     valid_data = []
-    for line in content:
+    content.seek(start)
+    for _ in range(line_count):
+        line = content.readline()
         if "IMG@" not in line:
             continue
         line_str = line.strip()
@@ -263,6 +265,23 @@ def upload_gdrive(output_filename):
     )
 
 
+class FileData:
+    def __init__(self, filename):
+        self._filename = filename
+        self._line_to_position = [0]
+        self._length = 0
+
+        with open(self._filename, 'r') as f:
+            while f.readline():
+                self._line_to_position.append(f.tell())
+                self._length += 1
+    
+    def __getitem__(self, line):
+        return self._line_to_position[line]
+
+    def __len__(self):
+        return self._length
+
 if __name__ == "__main__":
     import crawlingathome_client as cah
 
@@ -293,10 +312,19 @@ if __name__ == "__main__":
         last_sample_id = int(client.end_id)
         shard_of_chunk = client.shard_piece  # TODO
 
+        fd = FileData('shard.wat')
+
+        if shard_of_chunk == 0:
+            start_index = fd[0]
+        if shard_of_chunk == 1:
+            start_index = fd[ int(len(fd)*0.5) ]
+
+        lines = int(len(fd)*0.5)
+
         out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
         client.log("Processing shard")
         with open("shard.wat", "r") as infile:
-            parsed_data = parse_wat(infile)
+            parsed_data = parse_wat(infile, start_index, lines)
 
         client.log("Downloading images")
         dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
