@@ -330,7 +330,7 @@ if __name__ == "__main__":
         lines = int(len(fd)*0.5)
 
         out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
-        print (f"[crawling@home] shard identification {out_name}") # in case test fails, we need to remove bad data
+        print (f"[crawling@home] shard identification {out_fname}") # in case test fails, we need to remove bad data
         cah_log("Processing shard")
         with open("shard.wat", "r") as infile:
             parsed_data = parse_wat(infile, start_index, lines)
