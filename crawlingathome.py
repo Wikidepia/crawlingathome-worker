@@ -358,5 +358,6 @@ if __name__ == "__main__":
         )
         upload_gdrive(f"{output_folder}image_embedding_dict-{out_fname}.pkl")
         upload_gdrive(f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord")
+        upload_gdrive(output_folder + out_fname + ".csv")
         client._markjobasdone(len(filtered_df))
         print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")

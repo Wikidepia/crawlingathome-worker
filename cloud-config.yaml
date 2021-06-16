@@ -1,4 +1,4 @@
-#cloud-config
+#cloud-config 
 users:
   - default
   - name: crawl
@@ -6,9 +6,19 @@ users:
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     ssh_authorized_keys:
-      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC0Ff0RcDRafX/VyxYJTeMWJrJGHIKvAvIG+nUmUR73iQFcwF7JP8FucLO0baVIPb029DI469SOZJWh6FTwt5T+IT5jm0UDAs2gwYClS+tRbohr27kXoILhlugFiCor4TD0mMhBTKme4RPLlcbLYaZq4r7Rep0rbWn46f3Gma2fDXgpy3v1JZBa30yHxQVO+s2UjbqPk9RcsWNQ7oap36yGrVb6Bc8ucwAM6pGTdJMQBZoTj0tgI/b9cSgKO1JRyUTt6HhuW+DDfrOuZPJLqOq0f5sNV0gD+89K9zNEtZeO+bpQuZvf+cwhb10XQc4t0Yd8EsyhxSbWbdvn6Utb9yQwmk7ThJkxLLLmDp5LtClOvp6PTFUooDjj3DgFfD8ZBK+sckwu1TPAKa8Y8jU+q4GfF5abAej5rXObVjVcKHsziBSsSG6yViVtoFAvqh0dYfM/Ujz7dj6KtfRs67J5X+8CJvvKokRZcjMs6neJNHoRll5t6K/uhQgKHvBRpFqL9kGS4hTEdJog47w9o8qmLTMYQ340ckEZkRh/c1lWu51wNycLW1iab40D2F/ymMihGxMo9AqHKoqE/cnh9SaZr1EGr7s4BhBnAvyOwHh2+sW5ndOenDOZ1wGbYbwVJznSG8I1tdlJzEjf2GuW1HZtxE/95yW0zlEQkue8mBfNUL+Q6Q==
+      - <<your_ssh_public_key>>
 package_update: true
 package_upgrade: true
+packages:
+ - zip
+ - python3-pip
+ - git
+ - build-essential
+ - libssl-dev
+ - libffi-dev
+ - python3-dev
+ - libwebp-dev
+ - libjpeg-dev
 runcmd:
  - [ ls, -l, / ]
  - [ sh, -xc, "echo $(date) ': hello crawl!'" ]
@@ -23,8 +33,6 @@ runcmd:
  - 'echo "/swapfile none swap sw 0 0" | tee -a /etc/fstab'
  - sysctl vm.swappiness=75
  - 'echo "vm.swappiness=75" | tee -a /etc/sysctl.conf'
-# install prerequisite libs
- - 'yes | sudo apt install python3-pip git build-essential libssl-dev libffi-dev python3-dev libwebp-dev'
 # take care of max open files
  - echo "* soft     nproc          65535 " >> /etc/security/limits.conf
  - echo "* hard     nproc          65535 " >> /etc/security/limits.conf
