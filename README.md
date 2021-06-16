@@ -22,4 +22,4 @@
 - [x] Prevent corrupt image to be processed
 - [x] Shard of chunk (it needs to read all WAT file which will be bad for low ram server)
 - [x] Crawling@Home integration
-- [ ] Verify output
+- [x] Verify output
