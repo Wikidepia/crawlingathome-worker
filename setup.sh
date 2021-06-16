@@ -1,7 +1,7 @@
 #!/bin/bash
 
 sudo apt-get update
-sudo apt-get install -y git build-essential python3-dev python3-pip python3-venv
+sudo apt-get install -y git build-essential python3-dev python3-pip python3-venv libjpeg-dev
 if [ ! -f "crawlingathome.py" ]; then
     git clone https://github.com/Wikidepia/crawlingathome-worker
     cd crawlingathome-worker
