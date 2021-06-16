@@ -295,14 +295,6 @@ if __name__ == "__main__":
     csv_output_folder = output_folder
     img_output_folder = output_folder + "images/"
 
-    def cah_log(msg):
-        for _ in range(3):
-            try:
-                return client.log(msg)
-            except crawlingathome_client.errors.ServerError:
-                time.sleep(1)
-                continue
-
     while client.jobCount() > 0:
         start = time.time()
         if os.path.exists(output_folder):
@@ -331,15 +323,15 @@ if __name__ == "__main__":
 
         out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
         print (f"[crawling@home] shard identification {out_fname}") # in case test fails, we need to remove bad data
-        cah_log("Processing shard")
+        client.log("Processing shard")
         with open("shard.wat", "r") as infile:
             parsed_data = parse_wat(infile, start_index, lines)
 
-        cah_log("Downloading images")
+        client.log("Downloading images")
         dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
         dlparse_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
 
-        cah_log("Dropping NSFW keywords")
+        client.log("Dropping NSFW keywords")
         filtered_df, img_embeddings = df_clipfilter(dlparse_df)
         filtered_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
         img_embeds_sampleid = {}
@@ -349,7 +341,7 @@ if __name__ == "__main__":
         with open(f"{output_folder}image_embedding_dict-{out_fname}.pkl", "wb") as f:
             pickle.dump(img_embeds_sampleid, f)
 
-        cah_log("Saving TFRs")
+        client.log("Saving TFRs")
         print (f"[crawling@home] downloaded images: {len(dlparse_df)}")
         print (f"[crawling@home] filtered pairs: {len(filtered_df)}")
         df_tfrecords(
