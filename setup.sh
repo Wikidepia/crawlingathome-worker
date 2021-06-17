@@ -16,5 +16,5 @@ pip3 install git+https://github.com/Wikidepia/CLIP --no-cache-dir
 ssh-keygen -t rsa -b 4096 -f $HOME/.ssh/id_cah -q -P ""
 sed -i -e "s/<<your_ssh_public_key>>/$(sed 's:/:\\/:g' ~/.ssh/id_cah.pub)/" cloud-config.yaml
 
-pip3 uninstall pillow
+yes | pip3 uninstall pillow
 CC="cc -mavx2" pip3 install -U --force-reinstall pillow-simd
