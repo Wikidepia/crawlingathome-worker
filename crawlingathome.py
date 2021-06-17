@@ -323,6 +323,12 @@ if __name__ == "__main__":
         last_sample_id = int(client.end_id)
         shard_of_chunk = client.shard_piece  # TODO
 
+        out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
+        print(
+            f"[crawling@home] shard identification {out_fname}"
+        )  # in case test fails, we need to remove bad data
+        client.log("Processing shard")
+
         fd = FileData("shard.wat")
 
         if shard_of_chunk == 0:
@@ -332,11 +338,6 @@ if __name__ == "__main__":
 
         lines = int(len(fd) * 0.5)
 
-        out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
-        print(
-            f"[crawling@home] shard identification {out_fname}"
-        )  # in case test fails, we need to remove bad data
-        client.log("Processing shard")
         with open("shard.wat", "r") as infile:
             parsed_data = parse_wat(infile, start_index, lines)
 
