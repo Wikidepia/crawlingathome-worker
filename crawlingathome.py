@@ -21,7 +21,7 @@ def chunk_using_generators(lst, n):
 
 
 def remove_bad_chars(text):
-    return ''.join(c for c in text if c.isprintable())
+    return "".join(c for c in text if c.isprintable())
 
 
 def parse_wat(content, start, line_count):
@@ -50,7 +50,7 @@ def parse_wat(content, start, line_count):
                 continue
             url = e["url"]
             alt_text = ftfy.fix_text(e["alt"].replace("\n", " ")).strip()
-            if url.endswith(".svg") or url.endswith(".gif") or "data:image" in url:
+            if url in [".svg", ".gif", "data:image", "javascript:"]:
                 continue
             try:
                 _, _, details = cld2.detect(alt_text)
@@ -270,16 +270,17 @@ class FileData:
         self._line_to_position = [0]
         self._length = 0
 
-        with open(self._filename, 'r') as f:
+        with open(self._filename, "r") as f:
             while f.readline():
                 self._line_to_position.append(f.tell())
                 self._length += 1
-    
+
     def __getitem__(self, line):
         return self._line_to_position[line]
 
     def __len__(self):
         return self._length
+
 
 if __name__ == "__main__":
     import crawlingathome_client as cah
@@ -311,17 +312,19 @@ if __name__ == "__main__":
         last_sample_id = int(client.end_id)
         shard_of_chunk = client.shard_piece  # TODO
 
-        fd = FileData('shard.wat')
+        fd = FileData("shard.wat")
 
         if shard_of_chunk == 0:
             start_index = fd[0]
         if shard_of_chunk == 1:
-            start_index = fd[ int(len(fd)*0.5) ]
+            start_index = fd[int(len(fd) * 0.5)]
 
-        lines = int(len(fd)*0.5)
+        lines = int(len(fd) * 0.5)
 
         out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
-        print (f"[crawling@home] shard identification {out_fname}") # in case test fails, we need to remove bad data
+        print(
+            f"[crawling@home] shard identification {out_fname}"
+        )  # in case test fails, we need to remove bad data
         client.log("Processing shard")
         with open("shard.wat", "r") as infile:
             parsed_data = parse_wat(infile, start_index, lines)
@@ -341,14 +344,16 @@ if __name__ == "__main__":
             pickle.dump(img_embeds_sampleid, f)
 
         client.log("Saving TFRs")
-        print (f"[crawling@home] downloaded images: {len(dlparse_df)}")
-        print (f"[crawling@home] filtered pairs: {len(filtered_df)}")
+        print(f"[crawling@home] downloaded images: {len(dlparse_df)}")
+        print(f"[crawling@home] filtered pairs: {len(filtered_df)}")
         df_tfrecords(
             filtered_df,
             f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord",
         )
         upload_gdrive(f"{output_folder}image_embedding_dict-{out_fname}.pkl")
-        upload_gdrive(f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord")
+        upload_gdrive(
+            f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord"
+        )
         upload_gdrive(output_folder + out_fname + ".csv")
         client._markjobasdone(len(filtered_df))
         print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")
