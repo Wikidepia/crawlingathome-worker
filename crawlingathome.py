@@ -7,7 +7,6 @@ from glob import glob
 from urllib.parse import urljoin, urlparse
 from uuid import uuid1
 
-import regex
 import trio
 import ujson
 from PIL import Image, ImageFile, UnidentifiedImageError
@@ -22,7 +21,7 @@ def chunk_using_generators(lst, n):
 
 
 def remove_bad_chars(text):
-    return regex.sub(r"\p{Cc}|\p{Cs}", "", text)
+    return ''.join(c for c in text if c.isprintable())
 
 
 def parse_wat(content, start, line_count):
