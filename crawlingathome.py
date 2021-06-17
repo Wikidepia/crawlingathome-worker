@@ -28,6 +28,7 @@ def parse_wat(content, start, line_count):
     import ftfy
     import pycld2 as cld2
 
+    blocklist = open("blocklist-domain.txt").read().splitlines()
     valid_data = []
     content.seek(start)
     for _ in range(line_count):
@@ -50,7 +51,9 @@ def parse_wat(content, start, line_count):
                 continue
             url = e["url"]
             alt_text = ftfy.fix_text(e["alt"].replace("\n", " ")).strip()
-            if url in [".svg", ".gif", "data:image", "javascript:"]:
+            if url in [".svg", ".gif", "data:image", "javascript:"] or any(
+                bl in url for bl in blocklist
+            ):
                 continue
             try:
                 _, _, details = cld2.detect(alt_text)
