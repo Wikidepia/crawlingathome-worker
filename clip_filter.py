@@ -16,16 +16,11 @@ class CLIP:
         self.underaged_categories = ["teenager, teen", "kid, child, teenager, teen, baby or toddler, underaged, little girl, little boy", "kid, child, little girl, little boy", "baby, toddler","adult, woman, man, grownup, grown person,full-aged of legal age","full-aged, of legal age, adult","woman, man","adult, woman, man, grownup, grown person,full-aged of legal age"]
         self.animal_categories = ["lifeless object, thing", "thing, object", "material", "furniture","wall", "house", "tree", "wood","ground","industry", "table", "bed", "tool", "dress, clothes", "door", "chair", "rock, stone", "human", "man", "woman", "man, woman", "animal","cat","dog", "cow", "pig", "goat", "sheep", "elephant", "horse", "horse, elephant, pig, dog, cat, sheep, goat, animal", "life", "wildlife"]
 
-    def pre_preprocess(self, path):
-        im = Image.open(path)
-        if im.mode != "RGB":
-            im = im.convert("RGB")
-        return im
 
     def similarity_imgalt(self, batch):
         similarity = []
         images = [
-            self.preprocess(self.pre_preprocess(path)).unsqueeze(0).to(device)
+            self.preprocess(Image.open(path)).unsqueeze(0).to(device)
             for path in batch["PATH"]
         ]
         max_texts = [text[:77] for text in batch["TEXT"]]

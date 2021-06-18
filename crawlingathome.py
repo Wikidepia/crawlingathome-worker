@@ -1,4 +1,5 @@
 import gc
+from io import BytesIO
 import os
 import pickle
 import shutil
@@ -72,31 +73,23 @@ def parse_wat(content, start, line_count):
 
 def process_img_content(response, alt_text, license, sample_id):
     img_output_folder = "save/images/"
-    if "content-type" in response.headers:
-        if "image/" not in response.headers["content-type"]:
-            return
-        filetype = (
-            response.headers["content-type"].split("/")[-1].split(";")[0]
-        ).strip()  # Unreliable, maybe get filetype from content?
-    else:
-        url_path = urlparse(response.url).path
-        filetype = os.path.splitext(url_path)[1].strip()
 
-    if filetype not in ["jpeg", "jpg", "png"] or len(response.content) < 5000:
-        return
-
-    out_fname = img_output_folder + str(sample_id) + "." + filetype.strip(".")
     try:
-        img_data = response.content  # Raise KeyError
-        with open(out_fname, "wb") as f:
-            f.write(img_data)
-        pil_image = Image.open(out_fname)  # Raise UnidentifiedImageError
-        pil_image.close()
-    except (KeyError, UnidentifiedImageError) as e:
-        if os.path.exists(out_fname):
-            os.remove(out_fname)
+        if len(response.content) < 5000:
+            return
+        img_data = BytesIO(response.content)
+        with Image.open(img_data) as im:
+            width, height = im.size
+            format = im.format
+            out_fname = f"{img_output_folder}{str(sample_id)}.{format.lower()}"
+            if format not in ["JPEG", "JPG", "PNG"]:
+                return
+            if im.mode != "RGB":
+                im = im.convert("RGB")
+            im.save(out_fname)
+    except (KeyError, UnidentifiedImageError):
         return
-    width, height = pil_image.size
+
     return [str(sample_id), out_fname, response.url, alt_text, width, height, license]
 
 
@@ -106,11 +99,11 @@ async def request_image(datas, start_sampleid):
     tmp_data = []
     session = asks.Session(connections=64)
     session.headers = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1.1 Safari/605.1.15',
-    'Accept-Language':'en-US',
-    'Accept-Encoding':'gzip, deflate',
-    'Referer':'https://www.google.com/',
-    'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1.1 Safari/605.1.15",
+        "Accept-Language": "en-US",
+        "Accept-Encoding": "gzip, deflate",
+        "Referer": "https://www.google.com/",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     }
 
     async def _request(data, sample_id):
@@ -177,7 +170,7 @@ def df_clipfilter(df):
         elif nsfw_prob[0] >= 19 and nsfw_prob[1] >= 19:
             df.at[i, "NSFW"] = "NSFW"
 
-        # If image is nsfw and text is containing underaged or image is containing underage or image is containing animal
+        # If image is nsfw and (text is containing underaged or image is containing underage or image is containing animal)
         is_nsfw_underaged = (
             df.at[i, "NSFW"] == "NSFW" or df.at[i, "NSFW"] == "UNSURE"
         ) and (
@@ -187,7 +180,7 @@ def df_clipfilter(df):
             or animal_prob[0] > 20
         )
 
-        # Remove image containing underage and not similar image-alttext
+        # Remove image containing underage or not similar image-alttext
         if similarities[i] < sim_threshold or is_nsfw_underaged:
             df.drop(i, inplace=True)
             img_embedding.remove(img_embed)
@@ -321,7 +314,7 @@ if __name__ == "__main__":
         client.downloadShard()
         first_sample_id = int(client.start_id)
         last_sample_id = int(client.end_id)
-        shard_of_chunk = client.shard_piece  # TODO
+        shard_of_chunk = client.shard_piece
 
         out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
         print(
