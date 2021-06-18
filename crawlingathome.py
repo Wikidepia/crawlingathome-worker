@@ -91,6 +91,7 @@ def process_img_content(response, alt_text, license, sample_id):
         with open(out_fname, "wb") as f:
             f.write(img_data)
         pil_image = Image.open(out_fname)  # Raise UnidentifiedImageError
+        pil_image.close()
     except (KeyError, UnidentifiedImageError) as e:
         if os.path.exists(out_fname):
             os.remove(out_fname)
@@ -104,6 +105,13 @@ async def request_image(datas, start_sampleid):
 
     tmp_data = []
     session = asks.Session(connections=64)
+    session.headers = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1.1 Safari/605.1.15',
+    'Accept-Language':'en-US',
+    'Accept-Encoding':'gzip, deflate',
+    'Referer':'https://www.google.com/',
+    'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    }
 
     async def _request(data, sample_id):
         url, alt_text, license = data
