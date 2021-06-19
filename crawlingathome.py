@@ -80,9 +80,9 @@ def process_img_content(response, alt_text, license, sample_id):
         img_data = BytesIO(response.content)
         with Image.open(img_data) as im:
             width, height = im.size
-            format = im.format
-            out_fname = f"{img_output_folder}{str(sample_id)}.{format.lower()}"
-            if format not in ["JPEG", "JPG", "PNG"]:
+            im_format = im.format
+            out_fname = f"{img_output_folder}{str(sample_id)}.{im_format.lower()}"
+            if im_format not in ["JPEG", "JPG", "PNG"]:
                 return
             if im.mode != "RGB":
                 im = im.convert("RGB")
