@@ -155,35 +155,37 @@ def df_clipfilter(df):
 
     clip = clip_filter.CLIP()
     img_embedding, similarities = clip.preprocess_images(df)
-    nsfw_filters = clip.filter(img_embedding, clip.categories)
-    underage_filters = clip.filter(img_embedding, clip.underaged_categories)
-    animal_filters = clip.filter(img_embedding, clip.animal_categories)
     tmp_embed = copy(img_embedding)
-    for i, (nsfw_prob, underage_prob, animal_prob, img_embed) in enumerate(
-        zip(nsfw_filters, underage_filters, animal_filters, tmp_embed)
-    ):
-        df.at[i, "similarity"] = similarities[i]
-        df.at[i, "NSFW"] = "UNSURE"
+    for i, img_embed in enumerate(tmp_embed):
+        if similarities[i] < sim_threshold:
+            df.drop(i, inplace=True)
+            img_embedding.remove(img_embed)
+            continue
 
+        # get most similar categories
+        nsfw_prob = clip.prob(img_embed, clip.categories)
+        df.at[i, "NSFW"] = "UNLIKELY"
+        df.at[i, "similarity"] = similarities[i]
         if nsfw_prob[0] < 19 and nsfw_prob[1] < 19:
             df.at[i, "NSFW"] = "UNLIKELY"
+            continue
         elif nsfw_prob[0] >= 19 and nsfw_prob[1] >= 19:
             df.at[i, "NSFW"] = "NSFW"
 
+        underage_prob = clip.prob(img_embed, clip.underaged_categories)
+        animal_prob = clip.prob(img_embed, clip.animal_categories)
         # If image is nsfw and (text is containing underaged or image is containing underage or image is containing animal)
         is_nsfw_underaged = (
-            df.at[i, "NSFW"] == "NSFW" or df.at[i, "NSFW"] == "UNSURE"
-        ) and (
             underage_prob[0] < 4
             or underage_prob[1] < 4
             or any(x in df.at[i, "TEXT"] for x in underaged_text)
             or animal_prob[0] > 20
         )
-
         # Remove image containing underage or not similar image-alttext
-        if similarities[i] < sim_threshold or is_nsfw_underaged:
+        if is_nsfw_underaged:
             df.drop(i, inplace=True)
             img_embedding.remove(img_embed)
+
     df.reset_index(drop=True, inplace=True)
     return df, img_embedding
 
