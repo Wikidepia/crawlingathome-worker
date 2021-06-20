@@ -164,7 +164,7 @@ def df_clipfilter(df):
 
         # get most similar categories
         nsfw_prob = clip.prob(img_embed, clip.categories)
-        df.at[i, "NSFW"] = "UNLIKELY"
+        df.at[i, "NSFW"] = "UNSURE"
         df.at[i, "similarity"] = similarities[i]
         if nsfw_prob[0] < 19 and nsfw_prob[1] < 19:
             df.at[i, "NSFW"] = "UNLIKELY"
