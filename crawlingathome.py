@@ -52,7 +52,7 @@ def parse_wat(content, start, line_count):
                 continue
             url = e["url"]
             alt_text = ftfy.fix_text(e["alt"].replace("\n", " ")).strip()
-            if url in [".svg", ".gif", "data:image", "javascript:"] or any(
+            if any(x in url for x in [".svg", ".gif", "data:image", "javascript:"]) or any(
                 bl in url for bl in blocklist
             ):
                 continue
