@@ -52,9 +52,9 @@ def parse_wat(content, start, line_count):
                 continue
             url = e["url"]
             alt_text = ftfy.fix_text(e["alt"].replace("\n", " ")).strip()
-            if any(x in url for x in [".svg", ".gif", "data:image", "javascript:"]) or any(
-                bl in url for bl in blocklist
-            ):
+            if any(
+                x in url for x in [".svg", ".gif", "data:image", "javascript:"]
+            ) or any(bl in url for bl in blocklist):
                 continue
             try:
                 _, _, details = cld2.detect(alt_text)
@@ -173,16 +173,17 @@ def df_clipfilter(df):
             df.at[i, "NSFW"] = "NSFW"
 
         underage_prob = clip.prob(img_embed, clip.underaged_categories)
-        animal_prob = clip.prob(img_embed, clip.animal_categories)
-        # If image is nsfw and (text is containing underaged or image is containing underage or image is containing animal)
-        is_nsfw_underaged = (
+        if (
             underage_prob[0] < 4
             or underage_prob[1] < 4
             or any(x in df.at[i, "TEXT"] for x in underaged_text)
-            or animal_prob[0] > 20
-        )
-        # Remove image containing underage or not similar image-alttext
-        if is_nsfw_underaged:
+        ):
+            df.drop(i, inplace=True)
+            img_embedding.remove(img_embed)
+            continue
+
+        animal_prob = clip.prob(img_embed, clip.animal_categories)
+        if animal_prob[0] > 20:
             df.drop(i, inplace=True)
             img_embedding.remove(img_embed)
 
