@@ -58,5 +58,5 @@ class CLIP:
 
         # cosine similarity as logits
         similarity = (100.0 * image_features @ text_features.T).softmax(dim=-1)
-        _, indices = similarity[0].topk(2)
+        _, indices = similarity.topk(2)
         return indices
