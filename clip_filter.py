@@ -52,7 +52,7 @@ class CLIP:
         return im_dataset["image_features"], im_dataset["similarity"]
 
     def prob(self, image_features, text_features):
-        image_features = torch.as_tensor(image_features)
+        image_features = torch.as_tensor(image_features).to(device)
         image_features /= image_features.norm(dim=-1, keepdim=True)
         text_features /= text_features.norm(dim=-1, keepdim=True)
 
