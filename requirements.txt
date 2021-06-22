@@ -1,4 +1,3 @@
-anyascii
 asks
 datasets
 ftfy

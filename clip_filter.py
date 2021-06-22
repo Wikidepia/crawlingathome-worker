@@ -1,7 +1,6 @@
 import clip
 import datasets
 import torch
-from anyascii import anyascii
 from PIL import Image
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -23,7 +22,7 @@ class CLIP:
             self.preprocess(Image.open(path)).unsqueeze(0).to(device)
             for path in batch["PATH"]
         ]
-        max_texts = [anyascii(text)[:77] for text in batch["TEXT"]]
+        max_texts = [text[:74] for text in batch["TEXT"]]
         texts = clip.tokenize(max_texts).to(device)
 
         with torch.no_grad():
