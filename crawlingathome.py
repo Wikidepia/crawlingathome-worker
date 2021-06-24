@@ -1,17 +1,18 @@
 import gc
-from io import BytesIO
 import os
 import pickle
+import random
 import shutil
 import time
+from copy import copy
 from glob import glob
+from io import BytesIO
 from urllib.parse import urljoin, urlparse
 from uuid import uuid1
 
 import trio
 import ujson
 from PIL import Image, ImageFile, UnidentifiedImageError
-from copy import copy
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
@@ -336,6 +337,7 @@ if __name__ == "__main__":
 
         with open("shard.wat", "r") as infile:
             parsed_data = parse_wat(infile, start_index, lines)
+        random.shuffle(parsed_data)
 
         client.log("Downloading images")
         dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
