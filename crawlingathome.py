@@ -294,7 +294,7 @@ if __name__ == "__main__":
     import crawlingathome_client as cah
 
     YOUR_NICKNAME_FOR_THE_LEADERBOARD = "Wiki_live_test"
-    CRAWLINGATHOME_SERVER_URL = "http://crawlingathome.duckdns.org/"
+    CRAWLINGATHOME_SERVER_URL = "https://api.gagepiracy.com:4483/"
 
     client = cah.init(
         url=CRAWLINGATHOME_SERVER_URL, nickname=YOUR_NICKNAME_FOR_THE_LEADERBOARD
