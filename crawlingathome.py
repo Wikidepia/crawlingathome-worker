@@ -32,6 +32,7 @@ def parse_wat(content, start, line_count):
 
     blocklist = open("blocklist-domain.txt").read().splitlines()
     valid_data = []
+    url_dedupe = []
     content.seek(start)
     for _ in range(line_count):
         line = content.readline()
@@ -66,10 +67,10 @@ def parse_wat(content, start, line_count):
             if details[0][1] == "en":
                 if not url.startswith("http"):
                     url = urljoin(base_url, url)
-                valid_data.append((url, alt_text, license))
-    return [
-        t for t in {tuple(i) for i in valid_data}
-    ]  # Remove duplicate tuple from list
+                if url not in url_dedupe:
+                    valid_data.append((url, alt_text, license))
+                    url_dedupe.append(url)
+    return valid_data
 
 
 def process_img_content(response, alt_text, license, sample_id):
