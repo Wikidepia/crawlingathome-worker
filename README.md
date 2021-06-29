@@ -14,12 +14,3 @@
 1. use `cloud-config.yaml` script to init the droplet
 2. ssh with this command `ssh -oIdentitiesOnly=yes -i~/.ssh/id_cah crawl@{your-droplet-ip}}`
 3. check the script by running `tail -f crawl.log`
-
-## TODO
-- [x] Save image embedding 
-- [x] Convert images to tfrecords
-- [x] Upload to google drive
-- [x] Prevent corrupt image to be processed
-- [x] Shard of chunk (it needs to read all WAT file which will be bad for low ram server)
-- [x] Crawling@Home integration
-- [x] Verify output
