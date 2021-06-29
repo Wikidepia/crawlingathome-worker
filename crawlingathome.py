@@ -1,6 +1,7 @@
 import os
 import pickle
 import random
+import re
 import shutil
 import time
 from copy import copy
@@ -62,6 +63,14 @@ def parse_wat(content, start, line_count):
                 _, _, details = cld2.detect(alt_text)
 
             if details[0][1] == "en":
+                # Skip if wxh lower than 32x32
+                wxh_url = re.search(r"(\d+)x(\d+)", url.lower())
+                if wxh_url != None:
+                    dim = wxh_url.group()
+                    w, h = dim.split("x")
+                    # 32x32x4 = 4096 bytes
+                    if int(w) <= 32 and int(h) <= 32:
+                        continue
                 if not url.startswith("http"):
                     url = urljoin(base_url, url)
                 if url not in url_dedupe:
@@ -288,8 +297,9 @@ class FileData:
 
 
 if __name__ == "__main__":
-    import crawlingathome_client as cah
     import argparse
+
+    import crawlingathome_client as cah
 
     parser = argparse.ArgumentParser(description="Crawling@Home Worker")
     parser.add_argument(
@@ -301,9 +311,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    client = cah.init(
-        url="https://api.gagepiracy.com:4483/", nickname=args.nickname
-    )
+    client = cah.init(url="https://api.gagepiracy.com:4483/", nickname=args.nickname)
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
 
