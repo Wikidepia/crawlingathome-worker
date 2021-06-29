@@ -293,12 +293,20 @@ class FileData:
 
 if __name__ == "__main__":
     import crawlingathome_client as cah
+    import argparse
 
-    YOUR_NICKNAME_FOR_THE_LEADERBOARD = "Wiki_live_test"
-    CRAWLINGATHOME_SERVER_URL = "https://api.gagepiracy.com:4483/"
+    parser = argparse.ArgumentParser(description="Crawling@Home Worker")
+    parser.add_argument(
+        "-n",
+        "--nickname",
+        type=str,
+        required=True,
+        help="Nickname for leaderboard",
+    )
+    args = parser.parse_args()
 
     client = cah.init(
-        url=CRAWLINGATHOME_SERVER_URL, nickname=YOUR_NICKNAME_FOR_THE_LEADERBOARD
+        url="https://api.gagepiracy.com:4483/", nickname=args.nickname
     )
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
