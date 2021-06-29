@@ -124,7 +124,7 @@ async def request_image(datas, start_sampleid):
             n.start_soon(_request, data, start_sampleid)
             start_sampleid += 1
 
-    with open(f".tmp/{uuid1()}.json", "w") as f:
+    with open(f"./save/.tmp/{uuid1()}.json", "w") as f:
         ujson.dump(tmp_data, f)
     gc.collect()
     return
@@ -142,7 +142,7 @@ async def dl_wat(valid_data, first_sample_id):
                 request_image, datas=data, start_sampleid=i * 65536 + first_sample_id
             )
 
-    for tmpf in glob(".tmp/*.json"):
+    for tmpf in glob("./save/.tmp/*.json"):
         processed_samples.extend(ujson.load(open(tmpf)))
     return pd.DataFrame(
         processed_samples,
@@ -301,19 +301,16 @@ if __name__ == "__main__":
         url=CRAWLINGATHOME_SERVER_URL, nickname=YOUR_NICKNAME_FOR_THE_LEADERBOARD
     )
     output_folder = "./save/"
-    csv_output_folder = output_folder
     img_output_folder = output_folder + "images/"
 
     while client.jobCount() > 0:
         start = time.time()
         if os.path.exists(output_folder):
             shutil.rmtree(output_folder)
-        if os.path.exists(".tmp"):
-            shutil.rmtree(".tmp")
 
         os.mkdir(output_folder)
+        os.mkdir(f"{output_folder}.tmp")
         os.mkdir(img_output_folder)
-        os.mkdir(".tmp")
 
         client.newJob()
         client.downloadShard()
@@ -342,11 +339,12 @@ if __name__ == "__main__":
 
         client.log("Downloading images")
         dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
-        dlparse_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
+        dlparse_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
 
         client.log("Dropping NSFW keywords")
         filtered_df, img_embeddings = df_clipfilter(dlparse_df)
-        filtered_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
+        filtered_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
+
         img_embeds_sampleid = {}
         for i, img_embed_it in enumerate(img_embeddings):
             dfid_index = filtered_df.at[i, "SAMPLE_ID"]
