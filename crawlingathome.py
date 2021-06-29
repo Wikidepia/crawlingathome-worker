@@ -1,4 +1,3 @@
-import gc
 import os
 import pickle
 import random
@@ -7,7 +6,7 @@ import time
 from copy import copy
 from glob import glob
 from io import BytesIO
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 from uuid import uuid1
 
 import trio
@@ -126,7 +125,6 @@ async def request_image(datas, start_sampleid):
 
     with open(f"./save/.tmp/{uuid1()}.json", "w") as f:
         ujson.dump(tmp_data, f)
-    gc.collect()
     return
 
 
