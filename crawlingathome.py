@@ -105,7 +105,7 @@ async def request_image(datas, start_sampleid):
     import asks
 
     tmp_data = []
-    session = asks.Session(connections=64)
+    session = asks.Session(connections=192)
     session.headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1.1 Safari/605.1.15",
         "Accept-Language": "en-US",
@@ -118,7 +118,7 @@ async def request_image(datas, start_sampleid):
         url, alt_text, license = data
         try:
             proces = process_img_content(
-                await session.get(url, timeout=5), alt_text, license, sample_id
+                await session.get(url, timeout=3, connection_timeout=10, retries=-1), alt_text, license, sample_id
             )
             if proces is not None:
                 tmp_data.append(proces)
