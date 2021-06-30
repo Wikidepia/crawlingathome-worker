@@ -309,9 +309,16 @@ if __name__ == "__main__":
         required=True,
         help="Nickname for leaderboard",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        required=False,
+        help="Use debug server & disable GDrive upload",
+    )
     args = parser.parse_args()
 
-    client = cah.init(url="https://api.gagepiracy.com:4483/", nickname=args.nickname)
+    server_url = "https://api.gagepiracy.com:4483/" if not args.debug else "http://178.63.68.247:8181/"
+    client = cah.init(url=server_url, nickname=args.nickname)
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
 
@@ -371,10 +378,11 @@ if __name__ == "__main__":
             filtered_df,
             f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord",
         )
-        upload_gdrive(f"{output_folder}image_embedding_dict-{out_fname}.pkl")
-        upload_gdrive(
-            f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord"
-        )
-        upload_gdrive(output_folder + out_fname + ".csv")
+        if not args.debug:
+            upload_gdrive(f"{output_folder}image_embedding_dict-{out_fname}.pkl")
+            upload_gdrive(
+                f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord"
+            )
+            upload_gdrive(output_folder + out_fname + ".csv")
         client._markjobasdone(len(filtered_df))
         print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")
