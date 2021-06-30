@@ -1,3 +1,4 @@
+import argparse
 import os
 import pickle
 import random
@@ -5,17 +6,23 @@ import re
 import shutil
 import time
 from copy import copy
-from glob import glob
 from io import BytesIO
 from urllib.parse import urljoin
-from uuid import uuid1
-import requests
 
+import asks
+import pandas as pd
+import requests
+import tensorflow as tf
 import trio
 import ujson
 from PIL import Image, ImageFile, UnidentifiedImageError
+from tfr_image.utils import bytes_feature, int64_feature
+
+import clip_filter
+import crawlingathome_client as cah
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
+clip = clip_filter.CLIP()
 
 
 def chunk_using_generators(lst, n):
@@ -80,7 +87,7 @@ def parse_wat(content, start, line_count):
     return valid_data
 
 
-def process_img_content(response, alt_text, license, sample_id):
+def process_img_content(response, sample_id):
     img_output_folder = "save/images/"
 
     try:
@@ -99,60 +106,34 @@ def process_img_content(response, alt_text, license, sample_id):
     except (KeyError, UnidentifiedImageError, Image.DecompressionBombWarning):
         return
 
-    return [str(sample_id), out_fname, response.url, alt_text, width, height, license]
+    return out_fname, width, height
 
 
-async def request_image(datas, start_sampleid):
-    import asks
-
-    tmp_data = []
+async def dl_wat(valid_data, first_sample_id):
+    cur_sample_id = first_sample_id
+    processed_samples = []
     session = asks.Session(connections=192)
-    session.headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1.1 Safari/605.1.15",
-        "Accept-Language": "en-US",
-        "Accept-Encoding": "gzip, deflate",
-        "Referer": "https://www.google.com/",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    }
 
     async def _request(data, sample_id):
         url, alt_text, license = data
         try:
-            proces = process_img_content(
+            process_img = process_img_content(
                 await session.get(url, timeout=3, connection_timeout=10, retries=-1),
-                alt_text,
-                license,
                 sample_id,
             )
-            if proces is not None:
-                tmp_data.append(proces)
+            if process_img is not None:
+                out_fname, width, height = process_img
+                processed_samples.append(
+                    [str(sample_id), out_fname, url, alt_text, width, height, license]
+                )
         except Exception:
             return
 
     async with trio.open_nursery() as n:
-        for data in datas:
-            n.start_soon(_request, data, start_sampleid)
-            start_sampleid += 1
+        for data in valid_data:
+            cur_sample_id += 1
+            n.start_soon(_request, data, cur_sample_id)
 
-    with open(f"./save/.tmp/{uuid1()}.json", "w") as f:
-        ujson.dump(tmp_data, f)
-    return
-
-
-async def dl_wat(valid_data, first_sample_id):
-    import pandas as pd
-    import tractor
-
-    # Download every image available
-    processed_samples = []
-    async with tractor.open_nursery() as n:
-        for i, data in enumerate(chunk_using_generators(valid_data, 65536)):
-            await n.run_in_actor(
-                request_image, datas=data, start_sampleid=i * 65536 + first_sample_id
-            )
-
-    for tmpf in glob("./save/.tmp/*.json"):
-        processed_samples.extend(ujson.load(open(tmpf)))
     return pd.DataFrame(
         processed_samples,
         columns=["SAMPLE_ID", "PATH", "URL", "TEXT", "HEIGHT", "WIDTH", "LICENSE"],
@@ -162,9 +143,7 @@ async def dl_wat(valid_data, first_sample_id):
 def df_clipfilter(df):
     sim_threshold = 0.3
     underaged_text = ["teen", "kid", "child", "baby"]
-    import clip_filter
 
-    clip = clip_filter.CLIP()
     img_embedding, similarities = clip.preprocess_images(df)
     tmp_embed = copy(img_embedding)
     for i, img_embed in enumerate(tmp_embed):
@@ -203,9 +182,6 @@ def df_clipfilter(df):
 
 
 def df_tfrecords(df, output_fname):
-    import tensorflow as tf
-    from tfr_image.utils import bytes_feature, int64_feature
-
     def image_to_tfexample(sample_id, image_data, image_format, height, width, caption):
         return tf.train.Example(
             features=tf.train.Features(
@@ -299,10 +275,6 @@ class FileData:
 
 
 if __name__ == "__main__":
-    import argparse
-
-    import crawlingathome_client as cah
-
     parser = argparse.ArgumentParser(description="Crawling@Home Worker")
     parser.add_argument(
         "-n",
