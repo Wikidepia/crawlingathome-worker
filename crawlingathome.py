@@ -12,9 +12,7 @@ from uuid import uuid1
 
 import trio
 import ujson
-from PIL import Image, ImageFile, UnidentifiedImageError
-
-ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
+from PIL import Image, UnidentifiedImageError
 
 
 def chunk_using_generators(lst, n):
@@ -95,7 +93,7 @@ def process_img_content(response, alt_text, license, sample_id):
             if im.mode != "RGB":
                 im = im.convert("RGB")
             im.save(out_fname)
-    except (KeyError, UnidentifiedImageError, Image.DecompressionBombWarning):
+    except (KeyError, UnidentifiedImageError, Image.DecompressionBombWarning, IOError):
         return
 
     return [str(sample_id), out_fname, response.url, alt_text, width, height, license]
@@ -118,7 +116,10 @@ async def request_image(datas, start_sampleid):
         url, alt_text, license = data
         try:
             proces = process_img_content(
-                await session.get(url, timeout=3, connection_timeout=10, retries=-1), alt_text, license, sample_id
+                await session.get(url, timeout=3, connection_timeout=10, retries=-1),
+                alt_text,
+                license,
+                sample_id,
             )
             if proces is not None:
                 tmp_data.append(proces)
@@ -317,7 +318,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    server_url = "https://api.gagepiracy.com:4483/" if not args.debug else "http://178.63.68.247:8181/"
+    server_url = (
+        "https://api.gagepiracy.com:4483/"
+        if not args.debug
+        else "http://178.63.68.247:8181/"
+    )
     client = cah.init(url=server_url, nickname=args.nickname)
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
