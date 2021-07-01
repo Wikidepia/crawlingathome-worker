@@ -95,7 +95,7 @@ def process_img_content(response, alt_text, license, sample_id):
             if im.mode != "RGB":
                 im = im.convert("RGB")
             im.save(out_fname)
-    except (KeyError, UnidentifiedImageError):
+    except (KeyError, UnidentifiedImageError, Image.DecompressionBombWarning):
         return
 
     return [str(sample_id), out_fname, response.url, alt_text, width, height, license]
