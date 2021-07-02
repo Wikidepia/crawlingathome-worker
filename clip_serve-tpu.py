@@ -14,7 +14,9 @@ from tfr_image.utils import bytes_feature, int64_feature
 
 import clip_jax
 
-DEBUG = True
+# DEBUG = True
+DEBUG = False
+
 app = FastAPI()
 
 image_fn, text_fn, jax_params, jax_preprocess = clip_jax.load("ViT-B/32", "cpu")
