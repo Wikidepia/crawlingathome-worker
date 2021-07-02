@@ -10,9 +10,10 @@ fi
 git clone "https://github.com/TheoCoombes/crawlingathome" crawlingathome_client
 pip3 install -r crawlingathome_client/requirements.txt --no-cache-dir
 pip3 install -r requirements.txt --no-cache-dir
-pip3 install tensorflow --no-cache-dir
-pip3 install git+https://github.com/Wikidepia/CLIP --no-cache-dir
-
+if [ ! "$1" == "tpu" ]; then
+    pip3 install tensorflow tfr_image datasets --no-cache-dir
+    pip3 install git+https://github.com/Wikidepia/CLIP --no-cache-dir
+fi
 ssh-keygen -t rsa -b 4096 -f $HOME/.ssh/id_cah -q -P ""
 sed -i -e "s/<<your_ssh_public_key>>/$(sed 's:/:\\/:g' ~/.ssh/id_cah.pub)/" cloud-config.yaml
 
