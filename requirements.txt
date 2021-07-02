@@ -3,8 +3,7 @@ datasets
 ftfy
 pandas
 Pillow
-pycld2
+gcld3
 regex
-tfr_image
 trio
 ujson
