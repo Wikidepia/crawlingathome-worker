@@ -29,6 +29,24 @@ def chunk_using_generators(lst, n):
 def remove_bad_chars(text):
     return "".join(c for c in text if c.isprintable())
 
+def dim_filter(url):
+    # Skip if wxh lower than 32x32
+    wxh_url = re.search(r"(\d+)x(\d+)", url.lower())
+    wnh_url = re.search(r"w=(\d+).*h=(\d+)", url.lower())
+    if wxh_url != None:
+        w = wxh_url.group(1)
+        h = wxh_url.group(2)
+    elif wnh_url != None:
+        w = wnh_url.group(1)
+        h = wnh_url.group(2)
+    else:
+        w = 1024
+        h = 1024
+
+    # 32x32x4 = 4096 bytes
+    if int(w) <= 32 and int(h) <= 32:
+        return False
+    return True
 
 def parse_wat(content, start, line_count):
     import ftfy
@@ -67,14 +85,8 @@ def parse_wat(content, start, line_count):
                 _, _, details = cld2.detect(alt_text)
 
             if details[0][1] == "en":
-                # Skip if wxh lower than 32x32
-                wxh_url = re.search(r"(\d+)x(\d+)", url.lower())
-                if wxh_url != None:
-                    dim = wxh_url.group()
-                    w, h = dim.split("x")
-                    # 32x32x4 = 4096 bytes
-                    if int(w) <= 32 and int(h) <= 32:
-                        continue
+                if not dim_filter(url):
+                    continue
                 if not url.startswith("http"):
                     url = urljoin(base_url, url)
                 if url not in url_dedupe:
