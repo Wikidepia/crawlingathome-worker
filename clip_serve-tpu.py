@@ -11,6 +11,7 @@ import tensorflow as tf
 from fastapi import FastAPI, File, UploadFile
 from PIL import Image
 from tfr_image.utils import bytes_feature, int64_feature
+import os
 
 import clip_jax
 
@@ -267,4 +268,6 @@ async def cah_clip(file: UploadFile = File(...)):
         )
         upload_gdrive(csv_file)
     print(f"[{uuid}] Jobs completed in {time.time() - start}")
+    os.remove(f"{uuid}.zip")
+    shutil.rmtree(uuid)
     return {"len_result": len(df)}
