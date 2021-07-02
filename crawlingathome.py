@@ -9,10 +9,13 @@ from glob import glob
 from io import BytesIO
 from urllib.parse import urljoin
 from uuid import uuid1
+import requests
 
 import trio
 import ujson
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageFile, UnidentifiedImageError
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
 
 def chunk_using_generators(lst, n):
@@ -93,7 +96,7 @@ def process_img_content(response, alt_text, license, sample_id):
             if im.mode != "RGB":
                 im = im.convert("RGB")
             im.save(out_fname)
-    except (KeyError, UnidentifiedImageError, Image.DecompressionBombWarning, IOError):
+    except (KeyError, UnidentifiedImageError, Image.DecompressionBombWarning):
         return
 
     return [str(sample_id), out_fname, response.url, alt_text, width, height, license]
@@ -236,8 +239,6 @@ def df_tfrecords(df, output_fname):
 
 
 def upload_gdrive(output_filename):
-    import requests
-
     client_id = (
         "648172777761-onv1nc5f93nhlhf63flsq6onrmjphpfo.apps.googleusercontent.com"
     )
@@ -311,6 +312,12 @@ if __name__ == "__main__":
         help="Nickname for leaderboard",
     )
     parser.add_argument(
+        "--tpu",
+        type=str,
+        required=False,
+        help="API URL of CLIP TPU inference server",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         required=False,
@@ -366,28 +373,38 @@ if __name__ == "__main__":
         dlparse_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
 
         client.log("Dropping NSFW keywords")
-        filtered_df, img_embeddings = df_clipfilter(dlparse_df)
-        filtered_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
-
-        img_embeds_sampleid = {}
-        for i, img_embed_it in enumerate(img_embeddings):
-            dfid_index = filtered_df.at[i, "SAMPLE_ID"]
-            img_embeds_sampleid[str(dfid_index)] = img_embed_it
-        with open(f"{output_folder}image_embedding_dict-{out_fname}.pkl", "wb") as f:
-            pickle.dump(img_embeds_sampleid, f)
-
-        client.log("Saving TFRs")
-        print(f"[crawling@home] downloaded images: {len(dlparse_df)}")
-        print(f"[crawling@home] filtered pairs: {len(filtered_df)}")
-        df_tfrecords(
-            filtered_df,
-            f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord",
-        )
-        if not args.debug:
-            upload_gdrive(f"{output_folder}image_embedding_dict-{out_fname}.pkl")
-            upload_gdrive(
-                f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord"
+        if args.tpu:
+            shutil.make_archive("save", "zip", ".", "save")
+            r = requests.post(
+                args.tpu, files=dict(file=open("save.zip", "rb")), timeout=1800
             )
-            upload_gdrive(output_folder + out_fname + ".csv")
-        client._markjobasdone(len(filtered_df))
+            final_images = r.json()["len_result"]
+        else:
+            filtered_df, img_embeddings = df_clipfilter(dlparse_df)
+            filtered_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
+
+            img_embeds_sampleid = {}
+            for i, img_embed_it in enumerate(img_embeddings):
+                dfid_index = filtered_df.at[i, "SAMPLE_ID"]
+                img_embeds_sampleid[str(dfid_index)] = img_embed_it
+            with open(
+                f"{output_folder}image_embedding_dict-{out_fname}.pkl", "wb"
+            ) as f:
+                pickle.dump(img_embeds_sampleid, f)
+
+            client.log("Saving TFRs")
+            print(f"[crawling@home] downloaded images: {len(dlparse_df)}")
+            print(f"[crawling@home] filtered pairs: {len(filtered_df)}")
+            df_tfrecords(
+                filtered_df,
+                f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord",
+            )
+            if not args.debug:
+                upload_gdrive(f"{output_folder}image_embedding_dict-{out_fname}.pkl")
+                upload_gdrive(
+                    f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord"
+                )
+                upload_gdrive(output_folder + out_fname + ".csv")
+            final_images = len(filtered_df)
+        client._markjobasdone(final_images)
         print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")
