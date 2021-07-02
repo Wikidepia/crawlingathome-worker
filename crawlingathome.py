@@ -12,17 +12,13 @@ from urllib.parse import urljoin
 import asks
 import pandas as pd
 import requests
-import tensorflow as tf
 import trio
 import ujson
 from PIL import Image, ImageFile, UnidentifiedImageError
-from tfr_image.utils import bytes_feature, int64_feature
 
-import clip_filter
 import crawlingathome_client as cah
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
-clip = clip_filter.CLIP()
 
 
 def chunk_using_generators(lst, n):
@@ -182,6 +178,9 @@ def df_clipfilter(df):
 
 
 def df_tfrecords(df, output_fname):
+    import tensorflow as tf
+    from tfr_image.utils import bytes_feature, int64_feature
+
     def image_to_tfexample(sample_id, image_data, image_format, height, width, caption):
         return tf.train.Example(
             features=tf.train.Features(
@@ -296,6 +295,11 @@ if __name__ == "__main__":
         help="Use debug server & disable GDrive upload",
     )
     args = parser.parse_args()
+
+    if not args.tpu:
+        import clip_filter
+
+        clip = clip_filter.CLIP()
 
     server_url = (
         "https://api.gagepiracy.com:4483/"
