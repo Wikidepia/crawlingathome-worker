@@ -1,7 +1,10 @@
 #!/bin/bash
 
 sudo apt-get update
-sudo apt-get install -y git build-essential python3-dev python3-pip python3-venv libjpeg-dev
+if [ ! "$1" == "tpu" ]; then
+    sudo apt-get install -y git build-essential python3-dev python3-pip python3-venv libjpeg-dev
+fi
+sudo apt-get install -y git python3-pip libjpeg-dev
 if [ ! -f "crawlingathome.py" ]; then
     git clone https://github.com/Wikidepia/crawlingathome-worker
     cd crawlingathome-worker
@@ -13,9 +16,8 @@ pip3 install asks ftfy --no-cache-dir
 if [ ! "$1" == "tpu" ]; then
     pip3 install tensorflow tfr_image datasets --no-cache-dir
     pip3 install git+https://github.com/Wikidepia/CLIP --no-cache-dir
+    yes | pip3 uninstall pillow
+    CC="cc -mavx2" pip3 install -U --force-reinstall pillow-simd
 fi
 ssh-keygen -t rsa -b 4096 -f $HOME/.ssh/id_cah -q -P ""
 sed -i -e "s/<<your_ssh_public_key>>/$(sed 's:/:\\/:g' ~/.ssh/id_cah.pub)/" cloud-config.yaml
-
-yes | pip3 uninstall pillow
-CC="cc -mavx2" pip3 install -U --force-reinstall pillow-simd
