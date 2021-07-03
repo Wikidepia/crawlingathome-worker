@@ -311,7 +311,7 @@ if __name__ == "__main__":
         clip = clip_filter.CLIP()
 
     server_url = (
-        "https://api.gagepiracy.com:4483/"
+        "http://cah.io.community/"
         if not args.debug
         else "http://178.63.68.247:8181/"
     )
