@@ -1,5 +1,3 @@
-asks
-ftfy
 pandas
 Pillow
 gcld3

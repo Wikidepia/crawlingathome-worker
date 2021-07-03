@@ -22,3 +22,5 @@
 2. `pip3 install git+https://github.com/kingoflolz/CLIP_JAX fastapi tensorflow tfr_image requests pandas python-multipart uvicorn[standard]`, to install required packages.
 3. `uvicorn clip_serve-tpu:app --host 0.0.0.0`, to run inference server.
 4. `python3 crawlingathome.py -n <username> --tpu <ip>:<port>/filter/`, to run crawlingathome worker.
+
+If you already have TPU inference server, you can setup by `curl https://raw.githubusercontent.com/Wikidepia/crawlingathome-worker/master/setup.sh | bash -s tpu`
