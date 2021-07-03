@@ -4,7 +4,7 @@ sudo apt-get update
 if [ ! "$1" == "tpu" ]; then
     sudo apt-get install -y git build-essential python3-dev python3-pip python3-venv libjpeg-dev
 fi
-sudo apt-get install -y git python3-pip libjpeg-dev
+sudo apt-get install -y git python3-pip libjpeg-dev tmux
 if [ ! -f "crawlingathome.py" ]; then
     git clone https://github.com/Wikidepia/crawlingathome-worker
     cd crawlingathome-worker
