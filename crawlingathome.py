@@ -117,7 +117,7 @@ def process_img_content(response, sample_id):
 async def dl_wat(valid_data, first_sample_id):
     cur_sample_id = first_sample_id
     processed_samples = []
-    session = asks.Session(connections=128)
+    session = asks.Session(connections=192)
 
     async def _request(data, sample_id):
         url, alt_text, license = data
