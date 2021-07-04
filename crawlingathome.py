@@ -10,8 +10,6 @@ from io import BytesIO
 from urllib.parse import urljoin
 
 import asks
-import ftfy
-import gcld3
 import pandas as pd
 import requests
 import trio
@@ -19,8 +17,6 @@ import ujson
 from PIL import Image, UnidentifiedImageError
 
 import crawlingathome_client as cah
-
-detector = gcld3.NNetLanguageIdentifier(min_num_bytes=0, max_num_bytes=1000)
 
 
 def chunk_using_generators(lst, n):
@@ -53,6 +49,9 @@ def dim_filter(url):
 
 
 def parse_wat(content, start, line_count):
+    import ftfy
+    import pycld2 as cld2
+
     blocklist = open("blocklist-domain.txt").read().splitlines()
     valid_data = []
     url_dedupe = []
@@ -79,9 +78,13 @@ def parse_wat(content, start, line_count):
             alt_text = ftfy.fix_text(e["alt"].replace("\n", " ")).strip()
             if any(bl in url.lower() for bl in blocklist):
                 continue
+            try:
+                _, _, details = cld2.detect(alt_text)
+            except Exception as e:
+                alt_text = remove_bad_chars(alt_text)
+                _, _, details = cld2.detect(alt_text)
 
-            result = detector.FindLanguage(alt_text)
-            if result.language == "en" and result.is_reliable:
+            if details[0][1] == "en":
                 if not dim_filter(url):
                     continue
                 if not url.startswith("http"):
@@ -108,7 +111,7 @@ def process_img_content(response, sample_id):
             if im.mode != "RGB":
                 im = im.convert("RGB")
             im.save(out_fname)
-    except (KeyError, OSError, UnidentifiedImageError, Image.DecompressionBombWarning):
+    except (KeyError, UnidentifiedImageError, Image.DecompressionBombWarning):
         return
 
     return out_fname, width, height
@@ -311,9 +314,7 @@ if __name__ == "__main__":
         clip = clip_filter.CLIP()
 
     server_url = (
-        "http://cah.io.community/"
-        if not args.debug
-        else "http://178.63.68.247:8181/"
+        "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
     )
     client = cah.init(url=server_url, nickname=args.nickname)
     output_folder = "./save/"
