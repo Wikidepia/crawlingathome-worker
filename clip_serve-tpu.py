@@ -1,4 +1,5 @@
 import json
+import os
 import pickle
 import shutil
 import time
@@ -6,20 +7,22 @@ from glob import glob
 from uuid import uuid1
 
 import jax
+import numpy as np
 import pandas as pd
 import tensorflow as tf
 from fastapi import FastAPI, File, UploadFile
 from PIL import Image
 from tfr_image.utils import bytes_feature, int64_feature
-import os
 
 import clip_jax
+from clip_jax.simple_tokenizer import SimpleTokenizer as _Tokenizer
 
 # DEBUG = True
 DEBUG = False
 
 app = FastAPI()
 
+_tokenizer = _Tokenizer()
 image_fn, text_fn, jax_params, jax_preprocess = clip_jax.load("ViT-B/32", "cpu")
 devices = jax.local_devices()
 
@@ -36,6 +39,24 @@ def split_list(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i : i + n]
 
+
+def clip_tokenize(texts, context_length=77):
+    if isinstance(texts, str):
+        texts = [texts]
+
+    sot_token = _tokenizer.encoder["<|startoftext|>"]
+    eot_token = _tokenizer.encoder["<|endoftext|>"]
+    all_tokens = [[sot_token] + _tokenizer.encode(text) + [eot_token] for text in texts]
+    result = np.zeros((len(all_tokens), context_length), dtype=np.int32)
+
+    for i, tokens in enumerate(all_tokens):
+        if len(tokens) > context_length:
+            tokens = tokens[:76] + [eot_token]
+        result[i, : len(tokens)] = tokens
+
+    return result
+
+
 # I have no idea about this jax.jit stuff (1)
 @jax.jit
 def prob(image_features, text_embed):
@@ -43,6 +64,7 @@ def prob(image_features, text_embed):
     image_features /= jax.numpy.linalg.norm(image_features, axis=-1, keepdims=True)
     image_sim = jax.nn.softmax(100.0 * image_features @ text_embed.transpose())
     return jax.numpy.argsort(-image_sim)[0]
+
 
 # I have no idea about this jax.jit stuff (2)
 @jax.jit
@@ -64,7 +86,7 @@ def process_text_batch(texts, bs, n_device):
         rem = bs * n_device - len(texts)
         texts.extend(["a photo of dog"] * rem)
     for tx in split_list(texts, bs):
-        jax_texts.append(clip_jax.tokenize(tx))
+        jax_texts.append(clip_tokenize(tx))
     return jax.numpy.asarray(jax_texts)
 
 
@@ -135,7 +157,7 @@ def generate_embeddings(images, texts, batch_size):
             [x[0] for x in batch], batch_size, len(devices)
         )
         processed_text = process_text_batch(
-            [x[1][:75] for x in batch], batch_size, len(devices)
+            [x[1] for x in batch], batch_size, len(devices)
         )
         jax_image_embed = image_fn(jax_params, processed_img)
         jax_text_embed = text_fn(jax_params, processed_text)
