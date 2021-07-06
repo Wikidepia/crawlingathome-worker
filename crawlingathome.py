@@ -1,16 +1,16 @@
 import argparse
 import os
-import pickle
 import random
 import re
 import shutil
 import time
-from copy import copy
 from io import BytesIO
 from urllib.parse import urljoin
 
 import asks
+import ftfy
 import pandas as pd
+import pycld2 as cld2
 import requests
 import trio
 import ujson
@@ -49,9 +49,6 @@ def dim_filter(url):
 
 
 def parse_wat(content, start, line_count):
-    import ftfy
-    import pycld2 as cld2
-
     blocklist = open("blocklist-domain.txt").read().splitlines()
     valid_data = []
     url_dedupe = []
@@ -67,9 +64,10 @@ def parse_wat(content, start, line_count):
         ]["Links"]
         base_url = os.path.dirname(
             data["Envelope"]["WARC-Header-Metadata"]["WARC-Target-URI"]
-        )  # get base url
+        )
         license = "?"
         for e in linklist:
+            # Check if website is CC License
             if "url" in e and "creativecommons.org/licenses/" in e["url"]:
                 license = e["url"]
             if "alt" not in e:
@@ -78,6 +76,7 @@ def parse_wat(content, start, line_count):
             alt_text = ftfy.fix_text(e["alt"].replace("\n", " ")).strip()
             if any(bl in url.lower() for bl in blocklist):
                 continue
+
             try:
                 _, _, details = cld2.detect(alt_text)
             except Exception as e:
@@ -89,6 +88,7 @@ def parse_wat(content, start, line_count):
                     continue
                 if not url.startswith("http"):
                     url = urljoin(base_url, url)
+                # Skip if url is already included
                 if url not in url_dedupe:
                     valid_data.append((url, alt_text, license))
                     url_dedupe.append(url)
@@ -148,125 +148,6 @@ async def dl_wat(valid_data, first_sample_id):
     )
 
 
-def df_clipfilter(df):
-    sim_threshold = 0.3
-    underaged_text = ["teen", "kid", "child", "baby"]
-
-    img_embedding, similarities = clip.preprocess_images(df)
-    tmp_embed = copy(img_embedding)
-    for i, img_embed in enumerate(tmp_embed):
-        if similarities[i] < sim_threshold:
-            df.drop(i, inplace=True)
-            img_embedding.remove(img_embed)
-            continue
-
-        # get most similar categories
-        nsfw_prob = clip.prob(img_embed, clip.categories)
-        df.at[i, "NSFW"] = "UNSURE"
-        df.at[i, "similarity"] = similarities[i]
-        if nsfw_prob[0] < 19 and nsfw_prob[1] < 19:
-            df.at[i, "NSFW"] = "UNLIKELY"
-            continue
-        elif nsfw_prob[0] >= 19 and nsfw_prob[1] >= 19:
-            df.at[i, "NSFW"] = "NSFW"
-
-        underage_prob = clip.prob(img_embed, clip.underaged_categories)
-        if (
-            underage_prob[0] < 4
-            or underage_prob[1] < 4
-            or any(x in df.at[i, "TEXT"] for x in underaged_text)
-        ):
-            df.drop(i, inplace=True)
-            img_embedding.remove(img_embed)
-            continue
-
-        animal_prob = clip.prob(img_embed, clip.animal_categories)
-        if animal_prob[0] > 20:
-            df.drop(i, inplace=True)
-            img_embedding.remove(img_embed)
-
-    df.reset_index(drop=True, inplace=True)
-    return df, img_embedding
-
-
-def df_tfrecords(df, output_fname):
-    import tensorflow as tf
-    from tfr_image.utils import bytes_feature, int64_feature
-
-    def image_to_tfexample(sample_id, image_data, image_format, height, width, caption):
-        return tf.train.Example(
-            features=tf.train.Features(
-                feature={
-                    "sampleID": bytes_feature(sample_id),
-                    "image": bytes_feature(image_data),
-                    "format": bytes_feature(image_format),
-                    "label": bytes_feature(caption),
-                    "height": int64_feature(height),
-                    "width": int64_feature(width),
-                }
-            )
-        )
-
-    with tf.io.TFRecordWriter(output_fname) as tfrecord_writer:
-        for i in range(len(df)):
-            df_image = df.iloc[i]
-            image_fname = df_image["PATH"]
-            file_type = image_fname.split(".")[-1]
-            with tf.io.gfile.GFile(image_fname, "rb") as f:
-                image_data = f.read()
-            example = image_to_tfexample(
-                str(df_image["SAMPLE_ID"]).encode("utf_8"),
-                image_data,
-                file_type.encode("utf_8"),
-                df_image["HEIGHT"],
-                df_image["WIDTH"],
-                df_image["TEXT"].encode("utf_8"),
-            )
-            tfrecord_writer.write(example.SerializeToString())
-
-
-def upload_gdrive(output_filename):
-    client_id = (
-        "648172777761-onv1nc5f93nhlhf63flsq6onrmjphpfo.apps.googleusercontent.com"
-    )
-    client_secret = "HZ4Zw-_jVJ-3mwicz1NM5W5x"
-    refresh_token = "1//04N2Kysz1LObLCgYIARAAGAQSNwF-L9IrntHNWi2_nEVu2QX5fmlW0Ea0qA-ToBJLSdatDATYxiKcNFI8eZQ_fYN53gjF7b8MGmA"
-
-    def refresh_gdrive_token():
-        params = {
-            "grant_type": "refresh_token",
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "refresh_token": refresh_token,
-        }
-
-        authorization_url = "https://www.googleapis.com/oauth2/v4/token"
-
-        r = requests.post(authorization_url, data=params)
-
-        if r.ok:
-            return r.json()["access_token"]
-        else:
-            return None
-
-    access_t = refresh_gdrive_token()
-    headers = {"Authorization": "Bearer " + access_t}
-    para = {
-        "name": output_filename.split("/")[-1],
-        "parents": ["1CIgcIR7nX2xNBPB577jwEqbbwxAJR_nt"],
-    }
-
-    files = {
-        "data": ("metadata", ujson.dumps(para), "application/json; charset=UTF-8"),
-        "file": ("application/zip", open(output_filename, "rb")),
-    }
-    requests.post(
-        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-        headers=headers,
-        files=files,
-    )
-
-
 class FileData:
     def __init__(self, filename):
         self._filename = filename
@@ -297,7 +178,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--tpu",
         type=str,
-        required=False,
+        required=True,
         help="API URL of CLIP TPU inference server",
     )
     parser.add_argument(
@@ -307,11 +188,6 @@ if __name__ == "__main__":
         help="Use debug server & disable GDrive upload",
     )
     args = parser.parse_args()
-
-    if not args.tpu:
-        import clip_filter
-
-        clip = clip_filter.CLIP()
 
     server_url = (
         "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
@@ -336,9 +212,6 @@ if __name__ == "__main__":
         shard_of_chunk = client.shard_piece
 
         out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
-        print(
-            f"[crawling@home] shard identification {out_fname}"
-        )  # in case test fails, we need to remove bad data
         client.log("Processing shard")
 
         fd = FileData("shard.wat")
@@ -359,38 +232,11 @@ if __name__ == "__main__":
         dlparse_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
 
         client.log("Dropping NSFW keywords")
-        if args.tpu:
-            shutil.make_archive("save", "zip", ".", "save")
-            r = requests.post(
-                args.tpu, files=dict(file=open("save.zip", "rb")), timeout=1800
-            )
-            final_images = r.json()["len_result"]
-        else:
-            filtered_df, img_embeddings = df_clipfilter(dlparse_df)
-            filtered_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
-
-            img_embeds_sampleid = {}
-            for i, img_embed_it in enumerate(img_embeddings):
-                dfid_index = filtered_df.at[i, "SAMPLE_ID"]
-                img_embeds_sampleid[str(dfid_index)] = img_embed_it
-            with open(
-                f"{output_folder}image_embedding_dict-{out_fname}.pkl", "wb"
-            ) as f:
-                pickle.dump(img_embeds_sampleid, f)
-
-            client.log("Saving TFRs")
-            print(f"[crawling@home] downloaded images: {len(dlparse_df)}")
-            print(f"[crawling@home] filtered pairs: {len(filtered_df)}")
-            df_tfrecords(
-                filtered_df,
-                f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord",
-            )
-            if not args.debug:
-                upload_gdrive(f"{output_folder}image_embedding_dict-{out_fname}.pkl")
-                upload_gdrive(
-                    f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord"
-                )
-                upload_gdrive(output_folder + out_fname + ".csv")
-            final_images = len(filtered_df)
+        # Send worker data to TPU
+        shutil.make_archive("save", "zip", ".", "save")
+        r = requests.post(
+            args.tpu, files=dict(file=open("save.zip", "rb")), timeout=3600
+        )
+        final_images = r.json()["len_result"]
         client._markjobasdone(final_images)
         print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")

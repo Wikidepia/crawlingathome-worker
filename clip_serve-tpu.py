@@ -70,7 +70,6 @@ def prob(image_features, text_embed):
 @jax.jit
 def cosine_similarity(image_features, text_features):
     image_features = jax.numpy.expand_dims(image_features, 0)
-
     image_features_norm = jax.numpy.linalg.norm(image_features, axis=1, keepdims=True)
     text_features_norm = jax.numpy.linalg.norm(text_features, axis=0, keepdims=True)
 
