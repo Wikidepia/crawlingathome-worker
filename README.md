@@ -1,9 +1,10 @@
-# Crawling@Home
+# Crawling@Home Worker
 
 > Help us build a billion-scale image-caption dataset by filtering Common Crawl with OpenAI CLIP
 
 ## Setup
 
+0. You need to have TPU inference server, and Linux OS.
 1. `git clone https://github.com/Wikidepia/crawlingathome-worker/`, to download headless-crawlingathome.
 2. `cd crawlingathome-worker`, to enter the directory.
 3. `python3 -m venv venv && . venv/bin/activate`, to create virtual environment, optional for dedicated computers

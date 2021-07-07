@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import os
 import random
 import re
@@ -14,9 +15,15 @@ import pycld2 as cld2
 import requests
 import trio
 import ujson
+from bloom_filter2 import BloomFilter
 from PIL import Image, UnidentifiedImageError
 
 import crawlingathome_client as cah
+
+blocklist_dupe = BloomFilter(
+    max_elements=5 * 10 ** 6, error_rate=0.01, filename=("blocklist-duplicate.bin", -1)
+)
+blocklist_domain = open("blocklist-domain.txt").read().splitlines()
 
 
 def chunk_using_generators(lst, n):
@@ -49,7 +56,6 @@ def dim_filter(url):
 
 
 def parse_wat(content, start, line_count):
-    blocklist = open("blocklist-domain.txt").read().splitlines()
     valid_data = []
     url_dedupe = []
     content.seek(start)
@@ -74,7 +80,11 @@ def parse_wat(content, start, line_count):
                 continue
             url = link["url"]
             alt_text = ftfy.fix_text(link["alt"].replace("\n", " ")).strip()
-            if any(bl in url.lower() for bl in blocklist):
+            hashed_imgalt = str(hashlib.md5(url + alt_text.encode("utf-8")).hexdigest())
+            if (
+                any(bl in url.lower() for bl in blocklist_domain)
+                or hashed_imgalt in blocklist_dupe
+            ):
                 continue
 
             try:
