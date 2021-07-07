@@ -59,38 +59,39 @@ def parse_wat(content, start, line_count):
             continue
         line_str = line.strip()
         data = ujson.loads(line_str)
-        linklist = data["Envelope"]["Payload-Metadata"]["HTTP-Response-Metadata"][
+        links = data["Envelope"]["Payload-Metadata"]["HTTP-Response-Metadata"][
             "HTML-Metadata"
         ]["Links"]
         base_url = os.path.dirname(
             data["Envelope"]["WARC-Header-Metadata"]["WARC-Target-URI"]
         )
-        license = "?"
-        for e in linklist:
+        img_license = "?"
+        for link in links:
             # Check if website is CC License
-            if "url" in e and "creativecommons.org/licenses/" in e["url"]:
-                license = e["url"]
-            if "alt" not in e:
+            if "url" in link and "creativecommons.org/licenses/" in link["url"]:
+                img_license = link["url"]
+            if "alt" not in link:
                 continue
-            url = e["url"]
-            alt_text = ftfy.fix_text(e["alt"].replace("\n", " ")).strip()
+            url = link["url"]
+            alt_text = ftfy.fix_text(link["alt"].replace("\n", " ")).strip()
             if any(bl in url.lower() for bl in blocklist):
                 continue
 
             try:
                 _, _, details = cld2.detect(alt_text)
-            except Exception as e:
+            except Exception:
                 alt_text = remove_bad_chars(alt_text)
                 _, _, details = cld2.detect(alt_text)
 
             if details[0][1] == "en":
+                # Guess image dimension from url
                 if not dim_filter(url):
                     continue
                 if not url.startswith("http"):
                     url = urljoin(base_url, url)
                 # Skip if url is already included
                 if url not in url_dedupe:
-                    valid_data.append((url, alt_text, license))
+                    valid_data.append((url, alt_text, img_license))
                     url_dedupe.append(url)
     return valid_data
 
@@ -196,7 +197,7 @@ if __name__ == "__main__":
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
 
-    while client.jobCount() > 0:
+    while True:
         start = time.time()
         if os.path.exists(output_folder):
             shutil.rmtree(output_folder)
@@ -205,38 +206,48 @@ if __name__ == "__main__":
         os.mkdir(f"{output_folder}.tmp")
         os.mkdir(img_output_folder)
 
-        client.newJob()
-        client.downloadShard()
-        first_sample_id = int(client.start_id)
-        last_sample_id = int(client.end_id)
-        shard_of_chunk = client.shard_piece
+        try:
+            if client.jobCount() < 0:
+                break
+            client.newJob()
+            client.downloadShard()
+            first_sample_id = int(client.start_id)
+            last_sample_id = int(client.end_id)
+            shard_of_chunk = client.shard_piece
 
-        out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
-        client.log("Processing shard")
+            out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
+            client.log("Processing shard")
 
-        fd = FileData("shard.wat")
+            fd = FileData("shard.wat")
 
-        if shard_of_chunk == 0:
-            start_index = fd[0]
-        if shard_of_chunk == 1:
-            start_index = fd[int(len(fd) * 0.5)]
+            if shard_of_chunk == 0:
+                start_index = fd[0]
+            if shard_of_chunk == 1:
+                start_index = fd[int(len(fd) * 0.5)]
 
-        lines = int(len(fd) * 0.5)
+            lines = int(len(fd) * 0.5)
 
-        with open("shard.wat", "r") as infile:
-            parsed_data = parse_wat(infile, start_index, lines)
-        random.shuffle(parsed_data)
+            with open("shard.wat", "r") as infile:
+                parsed_data = parse_wat(infile, start_index, lines)
+            random.shuffle(parsed_data)
 
-        client.log("Downloading images")
-        dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
-        dlparse_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
+            client.log("Downloading images")
+            dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
+            dlparse_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
 
-        client.log("Dropping NSFW keywords")
-        # Send worker data to TPU
-        shutil.make_archive("save", "zip", ".", "save")
-        r = requests.post(
-            args.tpu, files=dict(file=open("save.zip", "rb")), timeout=3600
-        )
-        final_images = r.json()["len_result"]
-        client._markjobasdone(final_images)
-        print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")
+            client.log("Dropping NSFW keywords")
+            # Send worker data to TPU
+            shutil.make_archive("save", "zip", ".", "save")
+            r = requests.post(
+                args.tpu, files=dict(file=open("save.zip", "rb")), timeout=3600
+            )
+            final_images = r.json()["len_result"]
+            client._markjobasdone(final_images)
+            print(
+                f"[crawling@home] jobs completed in {round(time.time() - start)} seconds"
+            )
+        except cah.core.ServerError:
+            print(
+                "[crawling@home] server error, sleeping for 30 seconds before trying again"
+            )
+            time.sleep(30)
