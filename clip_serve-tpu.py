@@ -16,6 +16,8 @@ from tfr_image.utils import bytes_feature, int64_feature
 
 import clip_jax
 from clip_jax.simple_tokenizer import SimpleTokenizer as _Tokenizer
+from torch.utils.data import Dataset
+from torch.utils.data import DataLoader
 
 # DEBUG = True
 DEBUG = False
@@ -33,6 +35,30 @@ animal_categories = text_fn(jax_params, clip_jax.tokenize(["lifeless object, thi
 jax_params = jax.device_put_replicated(jax_params, devices)
 image_fn = jax.pmap(image_fn)
 text_fn = jax.pmap(text_fn)
+
+class ImageDataset(Dataset):
+    def __init__(self,
+                 image_files, 
+                 descriptions
+                 ):
+        super().__init__()
+        self.image_files = image_files
+        self.descriptions = descriptions
+    
+        self.tokenizer = clip_tokenize
+        self.image_transform = jax_preprocess
+
+    def __len__(self):
+        return len(self.image_files)
+
+    def __getitem__(self, ind):
+        image_file = self.image_files[ind]
+        image_tensor = self.image_transform(Image.open(image_file))
+
+        description = self.descriptions[ind]
+        tokenized_text  = self.tokenizer([description])[0]
+
+        return {"image_tensor": image_tensor, "text_tokens": tokenized_text, "image_filename": str(image_file), "text": description}
 
 
 def split_list(lst, n):
@@ -144,20 +170,14 @@ def clip_filter(embeddings, similarity, df):
     return ret_embeddings
 
 
-def generate_embeddings(images, texts, batch_size):
+def generate_embeddings(data, batch_size):
     global devices
     img_result = []
     sim_result = []
-    img_text_files = [[im, tx] for im, tx in zip(images, texts)]
-    batches = split_list(img_text_files, batch_size * len(devices))
-    for batch in batches:
+    for batch in data:
         result = []
-        processed_img = process_image_batch(
-            [x[0] for x in batch], batch_size, len(devices)
-        )
-        processed_text = process_text_batch(
-            [x[1] for x in batch], batch_size, len(devices)
-        )
+        processed_img = batch["image_tensor"]
+        processed_text = batch["text_tensor"]
         jax_image_embed = image_fn(jax_params, processed_img)
         jax_text_embed = text_fn(jax_params, processed_text)
 
@@ -262,10 +282,12 @@ async def cah_clip(file: UploadFile = File(...)):
     df = pd.read_csv(csv_file, sep="|")
     images = df["PATH"].tolist()
     texts = df["TEXT"].tolist()
+    data = DataLoader(ImageDataset(images, texts), \
+        batch_size=batch_size * len(devices), shuffle=False, num_workers=8, pin_memory=True, prefetch_factor=2)
 
     images = [uuid + "/" + x for x in images]
     print(f"[{uuid}] Generating embeddings")
-    embeddings, similarity = generate_embeddings(images, texts, batch_size)
+    embeddings, similarity = generate_embeddings(data, batch_size)
     print(f"[{uuid}] Filter with CLIP")
     img_embeddings = clip_filter(embeddings, similarity, df)
 
