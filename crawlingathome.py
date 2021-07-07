@@ -80,7 +80,7 @@ def parse_wat(content, start, line_count):
                 continue
             url = link["url"]
             alt_text = ftfy.fix_text(link["alt"].replace("\n", " ")).strip()
-            hashed_imgalt = str(hashlib.md5(url + alt_text.encode("utf-8")).hexdigest())
+            hashed_imgalt = str(hashlib.md5((url + alt_text).encode("utf-8")).hexdigest())
             if (
                 any(bl in url.lower() for bl in blocklist_domain)
                 or hashed_imgalt in blocklist_dupe
