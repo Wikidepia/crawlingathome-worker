@@ -213,7 +213,6 @@ if __name__ == "__main__":
             shutil.rmtree(output_folder)
 
         os.mkdir(output_folder)
-        os.mkdir(f"{output_folder}.tmp")
         os.mkdir(img_output_folder)
 
         try:
