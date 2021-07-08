@@ -23,13 +23,13 @@ You can also manually install crawlingathome-worker, by following this instructi
 4. `bash setup.sh`, to install dependencies.
 5. `python3 crawlingathome.py -n $NICKNAME`, to start Crawling!
 
-### CPU Worker + TPU
+### CPU Worker + TPU (Experimental)
 
 1. Run CPU Worker setup 1-3
 2. `bash setup.sh tpu`, to install dependencies.
 3. `python3 crawlingathome.py -n $NICKNAME --tpu <ip>:<port>/filter/`, to start Crawling!
 
-## TPU Inference Server Setup
+## TPU Inference Server Setup (Experimental)
 
 1. You need to setup TPU VM read [here](https://cloud.google.com/tpu/docs/jax-quickstart-tpu-vm)
 2. `pip3 install -r requirements_tpu.txt`, to install required packages.
