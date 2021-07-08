@@ -282,10 +282,11 @@ async def cah_clip(file: UploadFile = File(...)):
     df = pd.read_csv(csv_file, sep="|")
     images = df["PATH"].tolist()
     texts = df["TEXT"].tolist()
+    images = [uuid + "/" + x for x in images]
+
     data = DataLoader(ImageDataset(images, texts), \
         batch_size=batch_size * len(devices), shuffle=False, num_workers=8, pin_memory=True, prefetch_factor=2)
 
-    images = [uuid + "/" + x for x in images]
     print(f"[{uuid}] Generating embeddings")
     embeddings, similarity = generate_embeddings(data, batch_size)
     print(f"[{uuid}] Filter with CLIP")
