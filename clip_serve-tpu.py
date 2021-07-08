@@ -108,7 +108,7 @@ def cosine_similarity(image_features, text_features):
 def process_batch(flat_list, bs):
     batch_list = []
     for tx in split_list(flat_list, bs):
-        batch_list.append(clip_tokenize(tx))
+        batch_list.append(tx)
     return jax.numpy.asarray(batch_list)
 
 
