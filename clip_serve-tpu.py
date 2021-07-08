@@ -177,7 +177,7 @@ def generate_embeddings(data, batch_size):
     for batch in data:
         result = []
         processed_img = batch["image_tensor"]
-        processed_text = batch["text_tensor"]
+        processed_text = batch["text_tokens"]
         jax_image_embed = image_fn(jax_params, processed_img)
         jax_text_embed = text_fn(jax_params, processed_text)
 
