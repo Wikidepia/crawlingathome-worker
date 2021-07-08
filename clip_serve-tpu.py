@@ -115,10 +115,12 @@ def cosine_similarity(image_features, text_features):
 
 
 def process_batch(flat_list, bs):
-    batch_list = []
+    img_list = []
+    text_list = []
     for tx in split_list(flat_list, bs):
-        batch_list.append(tx)
-    return jax.numpy.asarray(batch_list)
+        img_list.append(tx["image_tensor"])
+        text_list.append(tx["text_tokens"])
+    return jax.numpy.asarray(img_list), jax.numpy.asarray(text_list)
 
 
 def clip_filter(embeddings, similarity, df):
@@ -168,8 +170,7 @@ def generate_embeddings(data, batch_size):
     for batch in data:
         result = []
         start = time.time()
-        processed_img = process_batch(batch["image_tensor"], batch_size)
-        processed_text = process_batch(batch["text_tokens"], batch_size)
+        processed_img, processed_text = process_batch(batch, batch_size)
         jax_image_embed = image_fn(jax_params, processed_img)
         jax_text_embed = text_fn(jax_params, processed_text)
 
