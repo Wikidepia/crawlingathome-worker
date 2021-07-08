@@ -5,6 +5,6 @@ RUN curl https://raw.githubusercontent.com/Wikidepia/crawlingathome-worker/maste
 WORKDIR crawlingathome-worker
 
 ENV NAME="Anonymous"
-ENV TPU=""
+ENV TPU="placeholder"
 
 CMD python3 crawlingathome.py -n $NAME --tpu $TPU
