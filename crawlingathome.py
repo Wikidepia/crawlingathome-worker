@@ -200,14 +200,13 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    is_tpu = True if args.tpu.startswith("http") else False
     server_url = (
         "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
     )
     client = cah.init(url=server_url, nickname=args.nickname)
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
-    if not is_tpu:
+    if not args.tpu:
         import clip_filter
 
         clip = clip_filter.CLIP()
@@ -250,7 +249,7 @@ if __name__ == "__main__":
             dlparse_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
 
             client.log("Dropping NSFW keywords")
-            if is_tpu:
+            if args.tpu:
                 # Send worker data to TPU
                 shutil.make_archive("save", "zip", ".", "save")
                 r = requests.post(
