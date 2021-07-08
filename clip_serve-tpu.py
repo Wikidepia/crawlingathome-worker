@@ -118,8 +118,8 @@ def process_batch(flat_list, bs):
     img_list = []
     text_list = []
     for tx in split_list(flat_list, bs):
-        img_list.append(tx["image_tensor"])
-        text_list.append(tx["text_tokens"])
+        img_list.extend([t["image_tensor"] for t in tx])
+        text_list.append([t["text_tokens"] for t in tx])
     return jax.numpy.asarray(img_list), jax.numpy.asarray(text_list)
 
 
