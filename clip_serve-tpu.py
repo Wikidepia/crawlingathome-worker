@@ -36,6 +36,15 @@ jax_params = jax.device_put_replicated(jax_params, devices)
 image_fn = jax.pmap(image_fn)
 text_fn = jax.pmap(text_fn)
 
+def numpy_collate(batch):
+    if isinstance(batch[0], np.ndarray):
+        return np.stack(batch)
+    elif isinstance(batch[0], (tuple,list)):
+        transposed = zip(*batch)
+        return [numpy_collate(samples) for samples in transposed]
+    else:
+        return np.array(batch)
+
 class ImageDataset(Dataset):
     def __init__(self,
                  image_files, 
@@ -269,7 +278,7 @@ async def cah_clip(file: UploadFile = File(...)):
     images = [uuid + "/" + x for x in images]
 
     data = DataLoader(ImageDataset(images, texts), \
-        batch_size=batch_size * len(devices), shuffle=False, num_workers=8, pin_memory=True, prefetch_factor=2)
+        batch_size=batch_size * len(devices), collate_fn=numpy_collate, shuffle=False, num_workers=8, pin_memory=True, prefetch_factor=2)
 
     print(f"[{uuid}] Generating embeddings")
     embeddings, similarity = generate_embeddings(data, batch_size)
