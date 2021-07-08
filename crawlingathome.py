@@ -189,7 +189,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--tpu",
         type=str,
-        required=True,
+        required=False,
         help="API URL of CLIP TPU inference server",
     )
     parser.add_argument(
@@ -206,6 +206,10 @@ if __name__ == "__main__":
     client = cah.init(url=server_url, nickname=args.nickname)
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
+    if not args.tpu:
+        import clip_filter
+
+        clip = clip_filter.CLIP()
 
     while True:
         start = time.time()
@@ -245,12 +249,16 @@ if __name__ == "__main__":
             dlparse_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
 
             client.log("Dropping NSFW keywords")
-            # Send worker data to TPU
-            shutil.make_archive("save", "zip", ".", "save")
-            r = requests.post(
-                args.tpu, files=dict(file=open("save.zip", "rb")), timeout=3600
-            )
-            final_images = r.json()["len_result"]
+            if args.tpu:
+                # Send worker data to TPU
+                shutil.make_archive("save", "zip", ".", "save")
+                r = requests.post(
+                    args.tpu, files=dict(file=open("save.zip", "rb")), timeout=3600
+                )
+                final_images = r.json()["len_result"]
+            else:
+                # Filter with local CPU / GPU
+                final_images = clip_filter.filter(dlparse_df, out_fname, debug=args.debug)
             client._markjobasdone(final_images)
             print(
                 f"[crawling@home] jobs completed in {round(time.time() - start)} seconds"
