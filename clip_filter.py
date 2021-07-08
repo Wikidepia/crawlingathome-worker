@@ -45,16 +45,7 @@ class CLIP:
         with torch.no_grad():
             image_features = self.model.encode_image(torch.cat(images)).float()
             text_features = self.model.encode_text(texts).float()
-
-        for image_feat, text_feat in zip(image_features, text_features):
-            similarity.append(
-                float(
-                    self.cosine_similarity(
-                        torch.reshape(text_feat, (1, 512)),
-                        torch.reshape(image_feat, (1, 512)),
-                    )
-                )
-            )
+            similarity = self.cosine_similarity(image_features, text_features).tolist()
 
         batch["similarity"] = similarity
         batch["image_features"] = image_features.detach().cpu().numpy()
