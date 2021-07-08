@@ -105,30 +105,11 @@ def cosine_similarity(image_features, text_features):
     ).T
 
 
-def process_text_batch(texts, bs, n_device):
-    jax_texts = []
-    if len(texts) < bs * n_device:
-        rem = bs * n_device - len(texts)
-        texts.extend(["a photo of dog"] * rem)
-    for tx in split_list(texts, bs):
-        jax_texts.append(clip_tokenize(tx))
-    return jax.numpy.asarray(jax_texts)
-
-
-def process_image_batch(file_list, bs, n_device):
-    jax_images = []
-    if len(file_list) < bs * n_device:
-        rem = bs * n_device - len(file_list)
-        file_list.extend([None] * rem)
-
-    empty_img = Image.new("RGB", (244, 244))
-    for batch in split_list(file_list, bs):
-        images = []
-        for im in batch:
-            im = empty_img if im == None else Image.open(im)
-            images.append(jax_preprocess(im))
-        jax_images.append(images)
-    return jax.numpy.asarray(jax_images)
+def process_batch(flat_list, bs):
+    batch_list = []
+    for tx in split_list(flat_list, bs):
+        batch_list.append(clip_tokenize(tx))
+    return jax.numpy.asarray(batch_list)
 
 
 def clip_filter(embeddings, similarity, df):
@@ -174,16 +155,19 @@ def generate_embeddings(data, batch_size):
     global devices
     img_result = []
     sim_result = []
+    import time
     for batch in data:
         result = []
-        processed_img = batch["image_tensor"]
-        processed_text = batch["text_tokens"]
+        start = time.time()
+        processed_img = process_batch(batch["image_tensor"])
+        processed_text = process_batch(batch["text_tokens"])
         jax_image_embed = image_fn(jax_params, processed_img)
         jax_text_embed = text_fn(jax_params, processed_text)
 
         for ims, txs in zip(jax_image_embed, jax_text_embed):
             for im, tx in zip(ims, txs):
                 result.append((im, cosine_similarity(im, tx)[0]))
+        print(time.time() - start)
         real_result = result[: len(batch)]
         img_result.extend([x[0] for x in real_result])
         sim_result.extend([x[1] for x in real_result])
