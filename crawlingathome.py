@@ -263,7 +263,7 @@ if __name__ == "__main__":
             print(
                 f"[crawling@home] jobs completed in {round(time.time() - start)} seconds"
             )
-        except cah.core.ServerError:
+        except (cah.core.ServerError, requests.exceptions.ConnectionError):
             print(
                 "[crawling@home] server error, sleeping for 30 seconds before trying again"
             )
