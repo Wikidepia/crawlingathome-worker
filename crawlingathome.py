@@ -58,7 +58,7 @@ def dim_filter(url):
 
 def parse_wat(content, start, line_count):
     valid_data = []
-    url_dedupe = []
+    url_dedupe = set()
     content.seek(start)
     for _ in range(line_count):
         line = content.readline()
@@ -103,7 +103,7 @@ def parse_wat(content, start, line_count):
                 # Skip if url is already included
                 if url not in url_dedupe:
                     valid_data.append((url, alt_text, img_license))
-                    url_dedupe.append(url)
+                    url_dedupe.add(url)
     return valid_data
 
 
