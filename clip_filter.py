@@ -1,11 +1,13 @@
-import clip
-from copy import copy
-import datasets
-import torch
-from PIL import Image
-import requests
 import json
 import pickle
+from copy import copy
+from multiprocessing import cpu_count
+
+import clip
+import datasets
+import requests
+import torch
+from PIL import Image
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 datasets.set_caching_enabled(False)
@@ -14,6 +16,9 @@ _tokenizer = clip.simple_tokenizer.SimpleTokenizer()
 
 
 def clip_tokenize(texts, context_length=77):
+    if isinstance(texts, str):
+        texts = [texts]
+
     sot_token = _tokenizer.encoder["<|startoftext|>"]
     eot_token = _tokenizer.encoder["<|endoftext|>"]
     all_tokens = [[sot_token] + _tokenizer.encode(text) + [eot_token] for text in texts]
@@ -25,6 +30,23 @@ def clip_tokenize(texts, context_length=77):
     return result
 
 
+class CLIPDataset(torch.utils.data.Dataset):
+    def __init__(self, dataframe, preprocess):
+        self.dataframe = dataframe
+        self.image_transform = preprocess
+        self.tokenizer = clip_tokenize
+
+    def __len__(self):
+        return len(self.dataframe)
+
+    def __getitem__(self, index):
+        row = self.dataframe.iloc[index]
+        return (
+            self.image_transform(Image.open(row["PATH"])),
+            self.tokenizer(row["TEXT"])[0],
+        )
+
+
 class CLIP:
     def __init__(self):
         self.model, self.preprocess = clip.load("ViT-B/32", device=device)
@@ -34,27 +56,26 @@ class CLIP:
             self.underaged_categories = self.model.encode_text(clip_tokenize(["teenager, teen", "kid, child, teenager, teen, baby or toddler, underaged, little girl, little boy", "kid, child, little girl, little boy", "baby, toddler","adult, woman, man, grownup, grown person,full-aged of legal age","full-aged, of legal age, adult","woman, man","adult, woman, man, grownup, grown person,full-aged of legal age"]).to(device))
             self.animal_categories = self.model.encode_text(clip_tokenize(["lifeless object, thing", "thing, object", "material", "furniture","wall", "house", "tree", "wood","ground","industry", "table", "bed", "tool", "dress, clothes", "door", "chair", "rock, stone", "human", "man", "woman", "man, woman", "animal","cat","dog", "cow", "pig", "goat", "sheep", "elephant", "horse", "horse, elephant, pig, dog, cat, sheep, goat, animal", "life", "wildlife"]).to(device))
 
-    def similarity_imgalt(self, batch):
-        similarity = []
-        images = [
-            self.preprocess(Image.open(path)).unsqueeze(0).to(device)
-            for path in batch["PATH"]
-        ]
-        texts = clip_tokenize(batch["TEXT"]).to(device)
-
+    def similarity_imgalt(self, image_tensor, text_tokens):
         with torch.no_grad():
-            image_features = self.model.encode_image(torch.cat(images)).float()
-            text_features = self.model.encode_text(texts).float()
+            image_features = self.model.encode_image(image_tensor).float()
+            text_features = self.model.encode_text(text_tokens).float()
             similarity = self.cosine_similarity(image_features, text_features).tolist()
 
-        batch["similarity"] = similarity
-        batch["image_features"] = image_features.detach().cpu().numpy()
-        return batch
+        image_features = image_features.detach().cpu().numpy()
+        return image_features, similarity
 
     def preprocess_images(self, df):
-        im_dataset = datasets.Dataset.from_pandas(df)
-        im_dataset = im_dataset.map(self.similarity_imgalt, batched=True, batch_size=8)
-        return im_dataset["image_features"], im_dataset["similarity"]
+        ret_image_features = []
+        ret_similarity = []
+        batch_size = 256 if device == "cuda" else 8
+        dataset = CLIPDataset(df, self.preprocess)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=cpu_count())
+        for tensors, tokens in dataloader:
+            image_features, similarities = self.similarity_imgalt(tensors, tokens)
+            ret_image_features.extend(image_features)
+            ret_similarity.extend(similarities)
+        return ret_image_features, ret_similarity
 
     def prob(self, image_features, text_features):
         text_features = text_features.float()
@@ -76,11 +97,10 @@ def df_clipfilter(df):
     underaged_text = ["teen", "kid", "child", "baby"]
 
     img_embedding, similarities = clip_filter.preprocess_images(df)
-    tmp_embed = copy(img_embedding)
-    for i, img_embed in enumerate(tmp_embed):
+    tmp_embed = []
+    for i, img_embed in enumerate(img_embedding):
         if similarities[i] < sim_threshold:
             df.drop(i, inplace=True)
-            img_embedding.remove(img_embed)
             continue
 
         # get most similar categories
@@ -89,27 +109,23 @@ def df_clipfilter(df):
         df.at[i, "similarity"] = similarities[i]
         if nsfw_prob[0] < 19 and nsfw_prob[1] < 19:
             df.at[i, "NSFW"] = "UNLIKELY"
+            tmp_embed.append(img_embed)
             continue
         elif nsfw_prob[0] >= 19 and nsfw_prob[1] >= 19:
             df.at[i, "NSFW"] = "NSFW"
 
         underage_prob = clip_filter.prob(img_embed, clip_filter.underaged_categories)
-        if (
-            underage_prob[0] < 4
-            or underage_prob[1] < 4
-            or any(x in df.at[i, "TEXT"] for x in underaged_text)
-        ):
+        if underage_prob[0] < 4 or underage_prob[1] < 4 or any(x in df.at[i, "TEXT"] for x in underaged_text):
             df.drop(i, inplace=True)
-            img_embedding.remove(img_embed)
             continue
 
         animal_prob = clip_filter.prob(img_embed, clip_filter.animal_categories)
         if animal_prob[0] > 20:
             df.drop(i, inplace=True)
-            img_embedding.remove(img_embed)
-
+            continue
+        tmp_embed.append(img_embed)
     df.reset_index(drop=True, inplace=True)
-    return img_embedding
+    return tmp_embed
 
 
 def df_tfrecords(df, output_fname):
@@ -149,11 +165,11 @@ def df_tfrecords(df, output_fname):
 
 
 def upload_gdrive(output_filename):
-    client_id = (
-        "648172777761-onv1nc5f93nhlhf63flsq6onrmjphpfo.apps.googleusercontent.com"
-    )
+    client_id = "648172777761-onv1nc5f93nhlhf63flsq6onrmjphpfo.apps.googleusercontent.com"
     client_secret = "HZ4Zw-_jVJ-3mwicz1NM5W5x"
-    refresh_token = "1//04N2Kysz1LObLCgYIARAAGAQSNwF-L9IrntHNWi2_nEVu2QX5fmlW0Ea0qA-ToBJLSdatDATYxiKcNFI8eZQ_fYN53gjF7b8MGmA"
+    refresh_token = (
+        "1//04N2Kysz1LObLCgYIARAAGAQSNwF-L9IrntHNWi2_nEVu2QX5fmlW0Ea0qA-ToBJLSdatDATYxiKcNFI8eZQ_fYN53gjF7b8MGmA"
+    )
 
     def refresh_gdrive_token():
         params = {
@@ -208,8 +224,6 @@ def filter(df, out_fname, output_folder="./save/", debug=False):
     )
     if not debug:
         upload_gdrive(f"{output_folder}image_embedding_dict-{out_fname}.pkl")
-        upload_gdrive(
-            f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord"
-        )
+        upload_gdrive(f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord")
         upload_gdrive(output_folder + out_fname + ".csv")
     return len(df)
