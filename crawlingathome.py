@@ -19,6 +19,7 @@ from bloom_filter2 import BloomFilter
 from PIL import Image, UnidentifiedImageError
 
 import crawlingathome_client as cah
+import clip_filter
 
 blocklist_dupe = BloomFilter(
     max_elements=5 * 10 ** 6, error_rate=0.01, filename=("blocklist-duplicate.bin", -1)
@@ -187,12 +188,6 @@ if __name__ == "__main__":
         help="Nickname for leaderboard",
     )
     parser.add_argument(
-        "--tpu",
-        type=str,
-        required=False,
-        help="API URL of CLIP TPU inference server",
-    )
-    parser.add_argument(
         "--debug",
         action="store_true",
         required=False,
@@ -204,12 +199,9 @@ if __name__ == "__main__":
         "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
     )
     client = cah.init(url=server_url, nickname=args.nickname)
+    clip = clip_filter.CLIP()
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
-    if not args.tpu:
-        import clip_filter
-
-        clip = clip_filter.CLIP()
 
     while True:
         start = time.time()
@@ -249,16 +241,8 @@ if __name__ == "__main__":
             dlparse_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
 
             client.log("Dropping NSFW keywords")
-            if args.tpu:
-                # Send worker data to TPU
-                shutil.make_archive("save", "zip", ".", "save")
-                r = requests.post(
-                    args.tpu, files=dict(file=open("save.zip", "rb")), timeout=3600
-                )
-                final_images = r.json()["len_result"]
-            else:
-                # Filter with local CPU / GPU
-                final_images = clip_filter.filter(dlparse_df, out_fname, debug=args.debug)
+            # Filter with local CPU / GPU
+            final_images = clip_filter.filter(dlparse_df, out_fname, debug=args.debug)
             client._markjobasdone(final_images)
             print(
                 f"[crawling@home] jobs completed in {round(time.time() - start)} seconds"

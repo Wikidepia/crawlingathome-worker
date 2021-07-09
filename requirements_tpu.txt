@@ -1,8 +1,0 @@
-git+https://github.com/kingoflolz/CLIP_JAX 
-fastapi 
-tensorflow
-tfr_image
-requests
-pandas
-python-multipart
-uvicorn[standard]
