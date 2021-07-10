@@ -11,7 +11,6 @@ pip3 install -r crawlingathome_client/requirements.txt --no-cache-dir
 pip3 install -r requirements.txt --no-cache-dir
 pip3 install asks ftfy --no-cache-dir
 
-pip3 install tensorflow tfr_image datasets --no-cache-dir
 pip3 install git+https://github.com/Wikidepia/CLIP --no-cache-dir
 yes | pip3 uninstall pillow
 CC="cc -mavx2" pip3 install -U --force-reinstall pillow-simd

@@ -4,6 +4,7 @@ from multiprocessing import cpu_count
 
 import clip
 import requests
+import tfreecord
 import torch
 from PIL import Image
 
@@ -108,39 +109,34 @@ def df_clipfilter(df):
 
 
 def df_tfrecords(df, output_fname):
-    import tensorflow as tf
-    from tfr_image.utils import bytes_feature, int64_feature
+    writer = tfreecord.RecordWriter()
 
     def image_to_tfexample(sample_id, image_data, image_format, height, width, caption):
-        return tf.train.Example(
-            features=tf.train.Features(
-                feature={
-                    "sampleID": bytes_feature(sample_id),
-                    "image": bytes_feature(image_data),
-                    "format": bytes_feature(image_format),
-                    "label": bytes_feature(caption),
-                    "height": int64_feature(height),
-                    "width": int64_feature(width),
-                }
-            )
-        )
+        return {
+            "sampleID": writer.bytes_feature(sample_id),
+            "image": writer.bytes_feature(image_data),
+            "format": writer.bytes_feature(image_format),
+            "label": writer.bytes_feature(caption),
+            "height": writer.int64_feature(height),
+            "width": writer.int64_feature(width),
+        }
 
-    with tf.io.TFRecordWriter(output_fname) as tfrecord_writer:
+    with open(output_fname, "ab") as tfr:
         for i in range(len(df)):
             df_image = df.iloc[i]
             image_fname = df_image["PATH"]
             file_type = image_fname.split(".")[-1]
-            with tf.io.gfile.GFile(image_fname, "rb") as f:
+            with open(image_fname, "rb") as f:
                 image_data = f.read()
             example = image_to_tfexample(
-                str(df_image["SAMPLE_ID"]).encode("utf_8"),
+                str(df_image["SAMPLE_ID"]).encode("utf-8"),
                 image_data,
-                file_type.encode("utf_8"),
+                file_type.encode("utf-8"),
                 df_image["HEIGHT"],
                 df_image["WIDTH"],
-                df_image["TEXT"].encode("utf_8"),
+                df_image["TEXT"].encode("utf-8"),
             )
-            tfrecord_writer.write(example.SerializeToString())
+            tfr.write(writer.encode_example(example))
 
 
 def upload_gdrive(output_filename):

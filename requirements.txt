@@ -3,6 +3,6 @@ pandas
 Pillow
 pycld2
 regex
-tfr_image
+tfreecord
 trio
 ujson
