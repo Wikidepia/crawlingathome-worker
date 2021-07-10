@@ -199,7 +199,6 @@ if __name__ == "__main__":
         "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
     )
     client = cah.init(url=server_url, nickname=args.nickname)
-    clip = clip_filter.CLIP()
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
 

@@ -37,8 +37,8 @@ class CLIP:
 
     def similarity_imgalt(self, image_tensor, text_tokens):
         with torch.no_grad():
-            image_features = self.model.encode_image(image_tensor).float()
-            text_features = self.model.encode_text(text_tokens).float()
+            image_features = self.model.encode_image(image_tensor.to(device)).float()
+            text_features = self.model.encode_text(text_tokens.to(device)).float()
             similarity = self.cosine_similarity(image_features, text_features).tolist()
 
         image_features = image_features.detach().cpu().numpy()
@@ -49,7 +49,7 @@ class CLIP:
         ret_similarity = []
         batch_size = 256 if device == "cuda" else 8
         dataset = CLIPDataset(df, self.preprocess)
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=cpu_count())
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=cpu_count(), pin_memory=True)
         for tensors, tokens in dataloader:
             image_features, similarities = self.similarity_imgalt(tensors, tokens)
             ret_image_features.extend(image_features)
