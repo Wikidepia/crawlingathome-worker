@@ -3,7 +3,6 @@ import pickle
 from multiprocessing import cpu_count
 
 import clip
-import requests
 import tfreecord
 import torch
 from PIL import Image
@@ -142,49 +141,7 @@ def df_tfrecords(df, output_fname):
             tfr.write(writer.encode_example(example))
 
 
-def upload_gdrive(output_filename):
-    client_id = "648172777761-onv1nc5f93nhlhf63flsq6onrmjphpfo.apps.googleusercontent.com"
-    client_secret = "HZ4Zw-_jVJ-3mwicz1NM5W5x"
-    refresh_token = (
-        "1//04N2Kysz1LObLCgYIARAAGAQSNwF-L9IrntHNWi2_nEVu2QX5fmlW0Ea0qA-ToBJLSdatDATYxiKcNFI8eZQ_fYN53gjF7b8MGmA"
-    )
-
-    def refresh_gdrive_token():
-        params = {
-            "grant_type": "refresh_token",
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "refresh_token": refresh_token,
-        }
-
-        authorization_url = "https://www.googleapis.com/oauth2/v4/token"
-
-        r = requests.post(authorization_url, data=params)
-
-        if r.ok:
-            return r.json()["access_token"]
-        else:
-            return None
-
-    access_t = refresh_gdrive_token()
-    headers = {"Authorization": "Bearer " + access_t}
-    para = {
-        "name": output_filename.split("/")[-1],
-        "parents": ["1CIgcIR7nX2xNBPB577jwEqbbwxAJR_nt"],
-    }
-
-    files = {
-        "data": ("metadata", json.dumps(para), "application/json; charset=UTF-8"),
-        "file": ("application/zip", open(output_filename, "rb")),
-    }
-    requests.post(
-        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-        headers=headers,
-        files=files,
-    )
-
-
-def filter(df, out_fname, output_folder="./save/", debug=False):
+def filter(df, out_fname, output_folder="./save/"):
     img_embeddings = df_clipfilter(df)
     df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
 
@@ -200,8 +157,4 @@ def filter(df, out_fname, output_folder="./save/", debug=False):
         df,
         f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord",
     )
-    if not debug:
-        upload_gdrive(f"{output_folder}image_embedding_dict-{out_fname}.pkl")
-        upload_gdrive(f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord")
-        upload_gdrive(output_folder + out_fname + ".csv")
     return len(df)

@@ -18,8 +18,8 @@ import ujson
 from bloom_filter2 import BloomFilter
 from PIL import Image, UnidentifiedImageError
 
-import crawlingathome_client as cah
 import clip_filter
+import crawlingathome_client as cah
 
 blocklist_dupe = BloomFilter(max_elements=5 * 10 ** 6, error_rate=0.01, filename=("blocklist-duplicate.bin", -1))
 blocklist_domain = open("blocklist-domain.txt").read().splitlines()
@@ -152,6 +152,13 @@ async def dl_wat(valid_data, first_sample_id):
     )
 
 
+def upload(source: str, client_type: str):
+    client_type = client_type.upper()
+    target = "gpujobs" if client_type == "CPU" else "CAH"
+    options = "-rsh" if client_type == "CPU" else "-zh"
+    return os.system(f"rsync {options} {source} archiveteam@88.198.2.17::{target}")
+
+
 class FileData:
     def __init__(self, filename):
         self._filename = filename
@@ -231,7 +238,10 @@ if __name__ == "__main__":
 
             client.log("Dropping NSFW keywords")
             # Filter with local CPU / GPU
-            final_images = clip_filter.filter(dlparse_df, out_fname, debug=args.debug)
+            final_images = clip_filter.filter(dlparse_df, out_fname)
+
+            if not args.debug:
+                upload(f"{output_folder}/*{out_fname}*", client.type)
             client._markjobasdone(final_images)
             print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")
         except (cah.core.ServerError, requests.exceptions.ConnectionError):
