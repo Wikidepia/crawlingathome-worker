@@ -10,6 +10,7 @@ from PIL import Image
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
+
 class CLIPDataset(torch.utils.data.Dataset):
     def __init__(self, dataframe, preprocess):
         self.dataframe = dataframe
@@ -50,7 +51,9 @@ class CLIP:
         ret_similarity = []
         batch_size = 256 if device == "cuda" else 8
         dataset = CLIPDataset(df, self.preprocess)
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=cpu_count(), pin_memory=device == "cuda")
+        dataloader = torch.utils.data.DataLoader(
+            dataset, batch_size=batch_size, shuffle=False, num_workers=cpu_count(), pin_memory=device == "cuda"
+        )
         for tensors, tokens in dataloader:
             image_features, similarities = self.similarity_imgalt(tensors, tokens)
             ret_image_features.extend(image_features)

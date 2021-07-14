@@ -21,9 +21,7 @@ from PIL import Image, UnidentifiedImageError
 import crawlingathome_client as cah
 import clip_filter
 
-blocklist_dupe = BloomFilter(
-    max_elements=5 * 10 ** 6, error_rate=0.01, filename=("blocklist-duplicate.bin", -1)
-)
+blocklist_dupe = BloomFilter(max_elements=5 * 10 ** 6, error_rate=0.01, filename=("blocklist-duplicate.bin", -1))
 blocklist_domain = open("blocklist-domain.txt").read().splitlines()
 
 
@@ -66,12 +64,8 @@ def parse_wat(content, start, line_count):
             continue
         line_str = line.strip()
         data = ujson.loads(line_str)
-        links = data["Envelope"]["Payload-Metadata"]["HTTP-Response-Metadata"][
-            "HTML-Metadata"
-        ]["Links"]
-        base_url = os.path.dirname(
-            data["Envelope"]["WARC-Header-Metadata"]["WARC-Target-URI"]
-        )
+        links = data["Envelope"]["Payload-Metadata"]["HTTP-Response-Metadata"]["HTML-Metadata"]["Links"]
+        base_url = os.path.dirname(data["Envelope"]["WARC-Header-Metadata"]["WARC-Target-URI"])
         img_license = "?"
         for link in links:
             # Check if website is CC License
@@ -82,10 +76,7 @@ def parse_wat(content, start, line_count):
             url = link["url"]
             alt_text = ftfy.fix_text(link["alt"].replace("\n", " ")).strip()
             hashed_imgalt = str(hashlib.md5((url + alt_text).encode("utf-8")).hexdigest())
-            if (
-                any(bl in url.lower() for bl in blocklist_domain)
-                or hashed_imgalt in blocklist_dupe
-            ):
+            if any(bl in url.lower() for bl in blocklist_domain) or hashed_imgalt in blocklist_dupe:
                 continue
 
             try:
@@ -143,9 +134,7 @@ async def dl_wat(valid_data, first_sample_id):
             )
             if process_img is not None:
                 out_fname, width, height = process_img
-                processed_samples.append(
-                    [str(sample_id), out_fname, url, alt_text, width, height, license]
-                )
+                processed_samples.append([str(sample_id), out_fname, url, alt_text, width, height, license])
         except Exception:
             return
 
@@ -195,9 +184,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    server_url = (
-        "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
-    )
+    server_url = "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
     client = cah.init(url=server_url, nickname=args.nickname)
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
@@ -243,11 +230,7 @@ if __name__ == "__main__":
             # Filter with local CPU / GPU
             final_images = clip_filter.filter(dlparse_df, out_fname, debug=args.debug)
             client._markjobasdone(final_images)
-            print(
-                f"[crawling@home] jobs completed in {round(time.time() - start)} seconds"
-            )
+            print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")
         except (cah.core.ServerError, requests.exceptions.ConnectionError):
-            print(
-                "[crawling@home] server error, sleeping for 30 seconds before trying again"
-            )
+            print("[crawling@home] server error, sleeping for 30 seconds before trying again")
             time.sleep(30)
