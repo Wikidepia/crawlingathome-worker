@@ -75,9 +75,6 @@ def parse_wat(content, start, line_count):
                 continue
             url = link["url"]
             alt_text = ftfy.fix_text(link["alt"].replace("\n", " ")).strip()
-            hashed_imgalt = str(hashlib.md5((url + alt_text).encode("utf-8")).hexdigest())
-            if any(bl in url.lower() for bl in blocklist_domain) or hashed_imgalt in blocklist_dupe:
-                continue
 
             try:
                 _, _, details = cld2.detect(alt_text)
@@ -86,9 +83,15 @@ def parse_wat(content, start, line_count):
                 _, _, details = cld2.detect(alt_text)
 
             if details[0][1] == "en":
-                # Guess image dimension from url
-                if not dim_filter(url):
+                hashed_imgalt = str(hashlib.md5((url + alt_text).encode("utf-8")).hexdigest())
+                # Skip url with various filter
+                if (
+                    any(bl in url.lower() for bl in blocklist_domain)
+                    or hashed_imgalt in blocklist_dupe
+                    or not dim_filter(url)
+                ):
                     continue
+
                 if not url.startswith("http"):
                     url = urljoin(base_url, url)
                 # Skip if url is already included
