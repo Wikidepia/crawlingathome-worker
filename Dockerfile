@@ -6,6 +6,4 @@ WORKDIR crawlingathome-worker
 
 ENV NAME="Anonymous"
 
-CMD git pull
-
 CMD python3 crawlingathome.py -n $NAME
