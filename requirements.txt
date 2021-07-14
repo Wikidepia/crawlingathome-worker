@@ -2,7 +2,6 @@ bloom-filter2
 pandas
 Pillow
 pycld2
-regex
 tfreecord
 trio
 ujson
