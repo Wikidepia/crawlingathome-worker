@@ -1,7 +1,7 @@
 .svg
 .gif
+.webp
 data:image
 javascript:
-alextimes.com
 statcounter.com
 histats.com
