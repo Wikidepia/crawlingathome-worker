@@ -10,5 +10,5 @@ To use worker docker images run the following commands, where $NICKNAME is your 
 
 ```bash
 docker pull wikidepia/crawlingathome-worker
-docker run -d -e NAME=$NICKNAME wikidepia/crawlingathome-worker
+docker run --shm-size 4G -dit -e NAME=$NICKNAME wikidepia/crawlingathome-worker
 ```
