@@ -5,6 +5,7 @@ import random
 import re
 import shutil
 import time
+import traceback
 from io import BytesIO
 from urllib.parse import urljoin
 
@@ -241,9 +242,19 @@ if __name__ == "__main__":
             final_images = clip_filter.filter(dlparse_df, out_fname)
 
             if not args.debug:
-                upload(f"{output_folder}/*{out_fname}*", client.type)
+                upload_status = upload(f"{output_folder}/*{out_fname}*", client.type)
+                if upload_status != 0:
+                    client.log("Upload failed")
+                    raise Exception("Upload failed")
             client._markjobasdone(final_images)
             print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")
         except (cah.core.ServerError, requests.exceptions.ConnectionError):
             print("[crawling@home] server error, sleeping for 30 seconds before trying again")
             time.sleep(30)
+        except Exception:
+            traceback.print_exc()
+            try:
+                client.bye()
+            except:
+                pass
+            break
