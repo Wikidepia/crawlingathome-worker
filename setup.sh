@@ -1,7 +1,7 @@
 #!/bin/bash
 
 apt-get update
-apt-get install -y git build-essential python3-dev python3-pip libjpeg-dev rsync
+apt-get install -y rsync
 if [ ! -f "crawlingathome.py" ]; then
     git clone https://github.com/Wikidepia/crawlingathome-worker
     cd crawlingathome-worker
