@@ -7,7 +7,7 @@ import shutil
 import time
 import traceback
 from io import BytesIO
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import asks
 import ftfy
@@ -22,10 +22,7 @@ from PIL import Image, UnidentifiedImageError
 import clip_filter
 import crawlingathome_client as cah
 
-blocklist_dupe = BloomFilter(max_elements=5 * 10 ** 6, error_rate=0.01, filename=("blocklist-duplicate.bin", -1))
-blocklist_domain = open("blocklist-domain.txt").read().splitlines()
-
-
+shard_counter = None
 def chunk_using_generators(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i : i + n]
@@ -55,10 +52,26 @@ def dim_filter(url):
     return True
 
 
+def load_bloom():
+    global blocklist_dupe, blocklist_domain, shard_counter
+    if shard_counter == 10 or shard_counter == None:
+        print("[crawling@home] reload bloom filter")
+        shutil.rmtree("blocklists")
+        os.makedirs("blocklists")
+        os.system("rsync -zh archiveteam@88.198.2.17::bloom/*.bin blocklists")
+        blocklist_dupe = BloomFilter(max_elements=80_000_000, error_rate=0.01, filename=("blocklists/bloom.bin", -1))
+        blocklist_domain = BloomFilter(max_elements=10_000_000, error_rate=0.01, filename=("blocklists/failed-domains.bin", -1))
+        shard_counter = 0
+    shard_counter += 1
+    return blocklist_dupe, blocklist_domain
+
+
 def parse_wat(content, start, line_count):
     valid_data = []
     url_dedupe = set()
     content.seek(start)
+    blocklist_dupe, blocklist_domain = load_bloom()
+    blocklist_format = [".svg", ".gif", ".webp", "data:image", "javascript:", "mailto:"]
     for _ in range(line_count):
         line = content.readline()
         if "IMG@" not in line:
@@ -86,11 +99,15 @@ def parse_wat(content, start, line_count):
             if details[0][1] == "en":
                 hashed_imgalt = str(hashlib.md5((url + alt_text).encode("utf-8")).hexdigest())
                 # Skip url with various filter
-                if (
-                    any(bl in url.lower() for bl in blocklist_domain)
-                    or hashed_imgalt in blocklist_dupe
-                    or not dim_filter(url)
-                ):
+                try:
+                    if (
+                        any(bl in url.lower() for bl in blocklist_format)
+                        or hashed_imgalt in blocklist_dupe
+                        or not dim_filter(url)
+                        or urlparse(url).netloc in blocklist_domain
+                    ):
+                        continue
+                except:
                     continue
 
                 if not url.startswith("http"):

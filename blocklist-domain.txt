@@ -1,7 +1,0 @@
-.svg
-.gif
-.webp
-data:image
-javascript:
-statcounter.com
-histats.com
