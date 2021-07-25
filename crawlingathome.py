@@ -146,6 +146,13 @@ async def dl_wat(valid_data, first_sample_id):
     processed_samples = []
     session = asks.Session(connections=192)
 
+    session.headers = {
+        "User-Agent": "Crawling at Home Project (http://cah.io.community)",
+        "Accept-Language": "en-US",
+        "Accept-Encoding": "gzip, deflate",
+        "Referer": "http://cah.io.community",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
     async def _request(data, sample_id):
         url, alt_text, license = data
         try:
