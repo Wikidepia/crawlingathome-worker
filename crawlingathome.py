@@ -23,6 +23,8 @@ import clip_filter
 import crawlingathome_client as cah
 
 shard_counter = None
+
+
 def chunk_using_generators(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i : i + n]
@@ -60,7 +62,9 @@ def load_bloom():
         os.makedirs("blocklists")
         os.system("rsync -zh archiveteam@88.198.2.17::bloom/*.bin blocklists")
         blocklist_dupe = BloomFilter(max_elements=80_000_000, error_rate=0.01, filename=("blocklists/bloom.bin", -1))
-        blocklist_domain = BloomFilter(max_elements=10_000_000, error_rate=0.01, filename=("blocklists/failed-domains.bin", -1))
+        blocklist_domain = BloomFilter(
+            max_elements=10_000_000, error_rate=0.01, filename=("blocklists/failed-domains.bin", -1)
+        )
         shard_counter = 0
     shard_counter += 1
     return blocklist_dupe, blocklist_domain
@@ -153,6 +157,7 @@ async def dl_wat(valid_data, first_sample_id):
         "Referer": "http://cah.io.community",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     }
+
     async def _request(data, sample_id):
         url, alt_text, license = data
         try:
@@ -242,6 +247,7 @@ if __name__ == "__main__":
             shard_of_chunk = client.shard_piece
 
             out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
+            print(f"[crawling@home] shard identification {out_fname}")  # in case test fails, we need to remove bad data
             client.log("Processing shard")
 
             fd = FileData("shard.wat")
