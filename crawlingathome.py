@@ -112,8 +112,7 @@ def parse_wat(content, start, line_count):
             try:
                 _, _, details = cld2.detect(alt_text)
             except Exception:
-                alt_text = remove_bad_chars(alt_text)
-                _, _, details = cld2.detect(alt_text)
+                _, _, details = cld2.detect(remove_bad_chars(alt_text))
 
             if details[0][1] == "en":
                 hashed_imgalt = str(hashlib.md5((url + alt_text).encode("utf-8")).hexdigest())
