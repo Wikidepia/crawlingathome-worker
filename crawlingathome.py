@@ -75,7 +75,8 @@ def parse_wat(content, start, line_count):
     url_dedupe = set()
     content.seek(start)
     blocklist_dupe, blocklist_domain = load_bloom()
-    blocklist_format = [".svg", ".gif", ".webp", "data:image", "javascript:", "mailto:"]
+    blocklist_format = set([".svg", ".gif", ".webp", "data:image", "javascript:", "mailto:"])
+
     for _ in range(line_count):
         line = content.readline()
         if "IMG@" not in line:
@@ -254,7 +255,7 @@ if __name__ == "__main__":
 
             if shard_of_chunk == 0:
                 start_index = fd[0]
-            if shard_of_chunk == 1:
+            elif shard_of_chunk == 1:
                 start_index = fd[int(len(fd) * 0.5)]
 
             lines = int(len(fd) * 0.5)
