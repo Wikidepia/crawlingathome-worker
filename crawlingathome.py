@@ -9,6 +9,7 @@ import traceback
 from io import BytesIO
 from multiprocessing import Pool
 from urllib.parse import urljoin, urlparse
+from uuid import uuid4
 
 import asks
 import ftfy
@@ -243,7 +244,7 @@ if __name__ == "__main__":
         "--debug",
         action="store_true",
         required=False,
-        help="Use debug server & disable GDrive upload",
+        help="Use debug server & disable upload",
     )
     args = parser.parse_args()
 
@@ -296,12 +297,21 @@ if __name__ == "__main__":
             if args.type == "hybrid":
                 # Filter with local CPU / GPU
                 final_images = clip_filter.filter(dlparse_df, out_fname)
+                upload_path = f"{output_folder}/*{out_fname}*"
+            else:
+                # Move result to random uuid folder
+                upload_path = uid = uuid4().hex
+                final_images = f"rsync {uid}"
+                shutil.move("save", uid)
 
             if not args.debug:
                 upload_status = upload(f"{output_folder}/*{out_fname}*", client.type)
                 if upload_status != 0:
                     client.log("Upload failed")
                     raise Exception("Upload failed")
+
+            if args.type == "cpu":
+                shutil.rmtree(uid)
             client.completeJob(final_images)
             print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")
         except (cah.core.ServerError, requests.exceptions.ConnectionError):
