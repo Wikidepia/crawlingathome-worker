@@ -7,6 +7,7 @@ import shutil
 import time
 import traceback
 from io import BytesIO
+from multiprocessing import Pool
 from urllib.parse import urljoin, urlparse
 
 import asks
@@ -54,27 +55,40 @@ def dim_filter(url):
     return True
 
 
+def download_to_file(dl_info):
+    url, filename = dl_info
+    r = requests.get(url)
+    with open(filename, "rb") as f:
+        f.write(r.content)
+
+
 def load_bloom():
-    global blocklist_dupe, blocklist_domain, shard_counter
+    global blocklist_dupe, blocklist_domain, blocklist_clipped, shard_counter
+    bloom_links = [
+        (f"https://bitbucket.org/ARKseal/crawlingathome-blocklists/raw/master/blocklists/{x}", f"blocklists/{x}")
+        for x in ("bloom.bin", "clipped.bin", "failed-domains.bin")
+    ]
     if shard_counter == 10 or shard_counter == None:
         print("[crawling@home] reload bloom filter")
-        shutil.rmtree("blocklists")
-        os.makedirs("blocklists")
-        os.system("rsync -zh archiveteam@88.198.2.17::bloom/*.bin blocklists")
+        with Pool(4) as p:
+            p.map(download_to_file, bloom_links)
         blocklist_dupe = BloomFilter(max_elements=80_000_000, error_rate=0.01, filename=("blocklists/bloom.bin", -1))
+        blocklist_clipped = BloomFilter(
+            max_elements=200_000_000, error_rate=0.05, filename=("blocklists/clipped.bin", -1)
+        )
         blocklist_domain = BloomFilter(
             max_elements=10_000_000, error_rate=0.01, filename=("blocklists/failed-domains.bin", -1)
         )
         shard_counter = 0
     shard_counter += 1
-    return blocklist_dupe, blocklist_domain
+    return blocklist_dupe, blocklist_domain, blocklist_clipped
 
 
 def parse_wat(content, start, line_count):
     valid_data = []
     url_dedupe = set()
     content.seek(start)
-    blocklist_dupe, blocklist_domain = load_bloom()
+    blocklist_dupe, blocklist_domain, blocklist_clipped = load_bloom()
     blocklist_format = set([".svg", ".gif", ".webp", "data:image", "javascript:", "mailto:"])
 
     for _ in range(line_count):
@@ -108,6 +122,7 @@ def parse_wat(content, start, line_count):
                     if (
                         any(bl in url.lower() for bl in blocklist_format)
                         or hashed_imgalt in blocklist_dupe
+                        or hashed_imgalt in blocklist_clipped
                         or not dim_filter(url)
                         or urlparse(url).netloc in blocklist_domain
                     ):
