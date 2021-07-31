@@ -305,7 +305,7 @@ if __name__ == "__main__":
                 shutil.move("save", uid)
 
             if not args.debug:
-                upload_status = upload(f"{output_folder}/*{out_fname}*", client.type)
+                upload_status = upload(upload_path, client.type)
                 if upload_status != 0:
                     client.log("Upload failed")
                     raise Exception("Upload failed")
