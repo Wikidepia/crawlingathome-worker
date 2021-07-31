@@ -20,7 +20,6 @@ import ujson
 from bloom_filter2 import BloomFilter
 from PIL import Image, UnidentifiedImageError
 
-import clip_filter
 import crawlingathome_client as cah
 
 shard_counter = None
@@ -232,6 +231,15 @@ if __name__ == "__main__":
         help="Nickname for leaderboard",
     )
     parser.add_argument(
+        "-t",
+        "--type",
+        required=False,
+        type=str.lower,
+        default="hybrid",
+        choices=["cpu", "hybrid"],
+        help="Worker type selected in the list: cpu, hybrid",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         required=False,
@@ -239,8 +247,10 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    if args.type == "hybrid":
+        import clip_filter
     server_url = "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
-    client = cah.init(url=server_url, nickname=args.nickname)
+    client = cah.init(url=server_url, nickname=args.nickname, type=args.type)
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
 
@@ -283,8 +293,9 @@ if __name__ == "__main__":
             dlparse_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
 
             client.log("Dropping NSFW keywords")
-            # Filter with local CPU / GPU
-            final_images = clip_filter.filter(dlparse_df, out_fname)
+            if args.type == "hybrid":
+                # Filter with local CPU / GPU
+                final_images = clip_filter.filter(dlparse_df, out_fname)
 
             if not args.debug:
                 upload_status = upload(f"{output_folder}/*{out_fname}*", client.type)
