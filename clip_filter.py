@@ -114,17 +114,6 @@ def df_clipfilter(df):
 
 def df_tfrecords(df, output_fname):
     writer = tfreecord.RecordWriter()
-
-    def image_to_tfexample(sample_id, image_data, image_format, height, width, caption):
-        return {
-            "sampleID": writer.bytes_feature(sample_id),
-            "image": writer.bytes_feature(image_data),
-            "format": writer.bytes_feature(image_format),
-            "label": writer.bytes_feature(caption),
-            "height": writer.int64_feature(height),
-            "width": writer.int64_feature(width),
-        }
-
     with open(output_fname, "ab") as tfr:
         for i in range(len(df)):
             df_image = df.iloc[i]
@@ -132,14 +121,15 @@ def df_tfrecords(df, output_fname):
             file_type = image_fname.split(".")[-1]
             with open(image_fname, "rb") as f:
                 image_data = f.read()
-            example = image_to_tfexample(
-                str(df_image["SAMPLE_ID"]).encode("utf-8"),
-                image_data,
-                file_type.encode("utf-8"),
-                df_image["HEIGHT"],
-                df_image["WIDTH"],
-                df_image["TEXT"].encode("utf-8"),
-            )
+
+            example = {
+                "sampleID": writer.bytes_feature(str(df_image["SAMPLE_ID"]).encode("utf-8")),
+                "image": writer.bytes_feature(image_data),
+                "format": writer.bytes_feature(file_type.encode("utf-8")),
+                "label": writer.bytes_feature(df_image["TEXT"].encode("utf-8")),
+                "height": writer.int64_feature(df_image["HEIGHT"]),
+                "width": writer.int64_feature(df_image["WIDTH"]),
+            }
             tfr.write(writer.encode_example(example))
 
 
