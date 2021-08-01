@@ -23,9 +23,6 @@ from PIL import Image, UnidentifiedImageError
 import clip_filter
 import crawlingathome_client as cah
 
-shard_counter = None
-
-
 def chunk_using_generators(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i : i + n]
@@ -63,24 +60,20 @@ def download_to_file(dl_info):
 
 
 def load_bloom():
-    global blocklist_dupe, blocklist_domain, blocklist_clipped, shard_counter
     bloom_links = [
-        (f"https://bitbucket.org/ARKseal/crawlingathome-blocklists/raw/master/blocklists/{x}", f"blocklists/{x}")
+        (f"https://the-eye.eu/public/AI/cahblacklists/{x}", f"blocklists/{x}")
         for x in ("bloom.bin", "clipped.bin", "failed-domains.bin")
     ]
-    if shard_counter == 10 or shard_counter == None:
-        print("[crawling@home] reload bloom filter")
-        with Pool(4) as p:
-            p.map(download_to_file, bloom_links)
-        blocklist_dupe = BloomFilter(max_elements=80_000_000, error_rate=0.01, filename=("blocklists/bloom.bin", -1))
-        blocklist_clipped = BloomFilter(
-            max_elements=200_000_000, error_rate=0.05, filename=("blocklists/clipped.bin", -1)
-        )
-        blocklist_domain = BloomFilter(
-            max_elements=10_000_000, error_rate=0.01, filename=("blocklists/failed-domains.bin", -1)
-        )
-        shard_counter = 0
-    shard_counter += 1
+    print("[crawling@home] reload bloom filter")
+    with Pool(4) as p:
+        p.map(download_to_file, bloom_links)
+    blocklist_dupe = BloomFilter(max_elements=80_000_000, error_rate=0.01, filename=("blocklists/bloom.bin", -1))
+    blocklist_clipped = BloomFilter(
+        max_elements=200_000_000, error_rate=0.05, filename=("blocklists/clipped.bin", -1)
+    )
+    blocklist_domain = BloomFilter(
+        max_elements=10_000_000, error_rate=0.01, filename=("blocklists/failed-domains.bin", -1)
+    )
     return blocklist_dupe, blocklist_domain, blocklist_clipped
 
 
