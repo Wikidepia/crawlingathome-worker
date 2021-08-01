@@ -29,6 +29,8 @@ class CLIPDataset(torch.utils.data.Dataset):
 class CLIP:
     def __init__(self):
         self.model, self.preprocess = clip.load("ViT-B/32", device=device)
+        if device == "cpu":
+            self.model = torch.quantization.quantize_dynamic(self.model, dtype=torch.qint8)
         self.cosine_similarity = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
         with torch.no_grad():
             self.categories = self.model.encode_text(clip.tokenize(["neutral","selfie", "illustration, drawing", "toys, play, kids, children", "teddy bear, puppet", "animal, bird, mammal, insect" "fashion, clothes", "logo, commercial, ad, advertisement", "drawing, painting","anime, cartoon","comedy, fun","romance, love story","thriller, suspense, crime story","action, action movie", "horror, monster movie", "documentary", "news, journalism", "entertainment", "talk show", "porn, sex, sperm, nipples, breats, tits, boops, penis, dick, cock, clitoris, vagina, fuck, lust, horny, sexual, lick, licking",  "porn, sex, sperm, nipples", "porn, sex, sperm, penis, dick, cock", "nipples, breats, tits, boops, sexy", "penis, dick, cock", "clitoris, vagina", "sex, fuck, lust, horny, sexual, lick, licking", "porn, sex, sexy","sexy, hot","sperm, skin","lust, horny, sexual","lick, licking, body", "anime, hentai, sexy", "cartoon, sexy, sex", "hentai", "anime, sexy, breasts", "hentai"]).to(device))
@@ -80,11 +82,12 @@ def df_clipfilter(df):
     img_embedding, similarities = clip_filter.preprocess_images(df)
     tmp_embed = []
     for i, img_embed in enumerate(img_embedding):
-        if similarities[i] < sim_threshold:
+        # Round to compensate int8 precision
+        if round(similarities[i], 2) < sim_threshold:
             df.drop(i, inplace=True)
             continue
 
-        # get most similar categories
+        # Get most similar categories
         nsfw_prob = clip_filter.prob(img_embed, clip_filter.categories)
         df.at[i, "NSFW"] = "UNSURE"
         df.at[i, "similarity"] = similarities[i]
