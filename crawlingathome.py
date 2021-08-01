@@ -7,7 +7,6 @@ import shutil
 import time
 import traceback
 from io import BytesIO
-from multiprocessing import Pool
 from urllib.parse import urljoin, urlparse
 
 import asks
@@ -22,6 +21,7 @@ from PIL import Image, UnidentifiedImageError
 
 import clip_filter
 import crawlingathome_client as cah
+
 
 def chunk_using_generators(lst, n):
     for i in range(0, len(lst), n):
@@ -52,25 +52,18 @@ def dim_filter(url):
     return True
 
 
-def download_to_file(dl_info):
-    url, filename = dl_info
+def download_to_file(url, filename):
     r = requests.get(url)
     with open(filename, "wb") as f:
         f.write(r.content)
 
 
 def load_bloom():
-    bloom_links = [
-        (f"https://the-eye.eu/public/AI/cahblacklists/{x}", f"blocklists/{x}")
-        for x in ("bloom.bin", "clipped.bin", "failed-domains.bin")
-    ]
     print("[crawling@home] reload bloom filter")
-    with Pool(4) as p:
-        p.map(download_to_file, bloom_links)
+    for x in ("bloom.bin", "clipped.bin", "failed-domains.bin"):
+        download_to_file(f"https://the-eye.eu/public/AI/cahblacklists/{x}", f"blocklists/{x}")
     blocklist_dupe = BloomFilter(max_elements=80_000_000, error_rate=0.01, filename=("blocklists/bloom.bin", -1))
-    blocklist_clipped = BloomFilter(
-        max_elements=200_000_000, error_rate=0.05, filename=("blocklists/clipped.bin", -1)
-    )
+    blocklist_clipped = BloomFilter(max_elements=200_000_000, error_rate=0.05, filename=("blocklists/clipped.bin", -1))
     blocklist_domain = BloomFilter(
         max_elements=10_000_000, error_rate=0.01, filename=("blocklists/failed-domains.bin", -1)
     )
