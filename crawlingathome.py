@@ -55,7 +55,7 @@ def dim_filter(url):
 def download_to_file(dl_info):
     url, filename = dl_info
     r = requests.get(url)
-    with open(filename, "rb") as f:
+    with open(filename, "wb") as f:
         f.write(r.content)
 
 
