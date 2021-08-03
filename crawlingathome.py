@@ -212,7 +212,7 @@ def chunk_to_shard(fname, shard_piece):
         if shard_piece == 0:
             subprocess.run(["head", "-n", str(line_count), fname], stdout=f)
         elif shard_piece == 1:
-            subprocess.run(["tail", "-n", str(line_count), fname], stdout=f)
+            subprocess.run(["tail", "-n", "+"+str(line_count + 1), fname], stdout=f)
 
 
 if __name__ == "__main__":
