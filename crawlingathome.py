@@ -19,6 +19,7 @@ import trio
 import ujson
 from bloom_filter2 import BloomFilter
 from PIL import Image, UnidentifiedImageError
+from requests.adapters import HTTPAdapter
 
 import clip_filter
 import crawlingathome_client as cah
@@ -54,15 +55,17 @@ def dim_filter(url):
 
 
 def download_to_file(url, filename):
-    r = requests.get(url)
+    headers = {"User-Agent": "Crawling@Home"}
+    session = requests.Session()
+    session.mount('http://', HTTPAdapter(max_retries=15))
+    r = session.get(url, headers=headers)
     with open(filename, "wb") as f:
         f.write(r.content)
-
 
 def load_bloom():
     print("[crawling@home] reload bloom filter")
     for x in ("bloom200M.bin", "clipped.bin", "failed-domains.bin"):
-        download_to_file(f"https://the-eye.eu/public/AI/cahblacklists/{x}", f"blocklists/{x}")
+        download_to_file(f"http://the-eye.eu/public/AI/cahblacklists/{x}", f"blocklists/{x}")
     blocklist_dupe = BloomFilter(max_elements=200_000_000, error_rate=0.05, filename=("blocklists/bloom200M.bin", -1))
     blocklist_clipped = BloomFilter(max_elements=200_000_000, error_rate=0.05, filename=("blocklists/clipped.bin", -1))
     blocklist_domain = BloomFilter(
