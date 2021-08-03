@@ -4,6 +4,7 @@ import os
 import random
 import re
 import shutil
+import subprocess
 import time
 import traceback
 from io import BytesIO
@@ -84,15 +85,14 @@ def load_bloom():
     return blocklist_dupe, blocklist_domain, blocklist_clipped
 
 
-def parse_wat(content, start, line_count):
+def parse_wat(fopen):
     valid_data = []
     url_dedupe = set()
-    content.seek(start)
     blocklist_dupe, blocklist_domain, blocklist_clipped = load_bloom()
     blocklist_format = set([".svg", ".gif", ".webp", "data:image", "javascript:", "mailto:"])
 
-    for _ in range(line_count):
-        line = content.readline()
+    for line in fopen:
+        line = line.strip()
         if "IMG@" not in line:
             continue
         line_str = line.strip()
@@ -204,22 +204,15 @@ def upload(source: str, client_type: str):
     return os.system(f"rsync {options} {source} archiveteam@88.198.2.17::{target}")
 
 
-class FileData:
-    def __init__(self, filename):
-        self._filename = filename
-        self._line_to_position = [0]
-        self._length = 0
+def chunk_to_shard(fname, shard_piece):
+    wc_l = subprocess.run(["wc", "-l", fname], capture_output=True)
+    line_count = int(wc_l.stdout.decode("utf-8").split()[0]) // 2
 
-        with open(self._filename, "r") as f:
-            while f.readline():
-                self._line_to_position.append(f.tell())
-                self._length += 1
-
-    def __getitem__(self, line):
-        return self._line_to_position[line]
-
-    def __len__(self):
-        return self._length
+    with open("sharded.wat", "w") as f:
+        if shard_piece == 0:
+            subprocess.run(["head", "-n", str(line_count), fname], stdout=f)
+        elif shard_piece == 1:
+            subprocess.run(["tail", "-n", str(line_count), fname], stdout=f)
 
 
 if __name__ == "__main__":
@@ -276,17 +269,9 @@ if __name__ == "__main__":
             print(f"[crawling@home] shard identification {out_fname}")  # in case test fails, we need to remove bad data
             client.log("Processing shard")
 
-            fd = FileData("shard.wat")
-
-            if shard_of_chunk == 0:
-                start_index = fd[0]
-            elif shard_of_chunk == 1:
-                start_index = fd[int(len(fd) * 0.5)]
-
-            lines = int(len(fd) * 0.5)
-
-            with open("shard.wat", "r") as infile:
-                parsed_data = parse_wat(infile, start_index, lines)
+            chunk_to_shard("shard.wat", shard_of_chunk)
+            with open("sharded.wat", "r") as shard_file:
+                parsed_data = parse_wat(shard_file)
             random.shuffle(parsed_data)
 
             client.log("Downloading images")
