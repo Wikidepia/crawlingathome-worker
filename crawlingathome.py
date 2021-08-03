@@ -61,9 +61,9 @@ def download_to_file(url, filename):
 
 def load_bloom():
     print("[crawling@home] reload bloom filter")
-    for x in ("bloom.bin", "clipped.bin", "failed-domains.bin"):
+    for x in ("bloom200M.bin", "clipped.bin", "failed-domains.bin"):
         download_to_file(f"https://the-eye.eu/public/AI/cahblacklists/{x}", f"blocklists/{x}")
-    blocklist_dupe = BloomFilter(max_elements=80_000_000, error_rate=0.01, filename=("blocklists/bloom.bin", -1))
+    blocklist_dupe = BloomFilter(max_elements=200_000_000, error_rate=0.05, filename=("blocklists/bloom200M.bin", -1))
     blocklist_clipped = BloomFilter(max_elements=200_000_000, error_rate=0.05, filename=("blocklists/clipped.bin", -1))
     blocklist_domain = BloomFilter(
         max_elements=10_000_000, error_rate=0.01, filename=("blocklists/failed-domains.bin", -1)
@@ -198,7 +198,7 @@ def chunk_to_shard(fname, shard_piece):
         if shard_piece == 0:
             subprocess.run(["head", "-n", str(line_count), fname], stdout=f)
         elif shard_piece == 1:
-            subprocess.run(["tail", "-n", "+"+str(line_count + 1), fname], stdout=f)
+            subprocess.run(["tail", "-n", "+" + str(line_count + 1), fname], stdout=f)
 
 
 if __name__ == "__main__":
