@@ -15,6 +15,7 @@ import ftfy
 import pandas as pd
 import pycld2 as cld2
 import requests
+import sentry_sdk
 import trio
 import ujson
 from bloom_filter2 import BloomFilter
@@ -57,10 +58,11 @@ def dim_filter(url):
 def download_to_file(url, filename):
     headers = {"User-Agent": "Crawling@Home"}
     session = requests.Session()
-    session.mount('http://', HTTPAdapter(max_retries=15))
+    session.mount("http://", HTTPAdapter(max_retries=15))
     r = session.get(url, headers=headers)
     with open(filename, "wb") as f:
         f.write(r.content)
+
 
 def load_bloom():
     print("[crawling@home] reload bloom filter")
@@ -223,6 +225,7 @@ if __name__ == "__main__":
 
     server_url = "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
     client = cah.init(url=server_url, nickname=args.nickname)
+    sentry_sdk.init("https://dd28610c2d844c0ba0269a2f7cbd088e@o946916.ingest.sentry.io/5897089")
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
 
@@ -271,6 +274,7 @@ if __name__ == "__main__":
             print("[crawling@home] server error, sleeping for 30 seconds before trying again")
             time.sleep(30)
         except Exception:
+            sentry_sdk.capture_exception()
             traceback.print_exc()
             try:
                 client.bye()
