@@ -3,6 +3,7 @@ https://github.com/Wikidepia/crawlingathome-wheels/raw/master/pycld2/pycld2-0.42
 asks
 bloom-filter2
 pandas
+sentry-sdk
 tfreecord
 trio
 ujson
