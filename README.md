@@ -11,8 +11,14 @@
 To use worker docker images run the following commands, where $NICKNAME is your nickname that will be showed in leaderboard.
 
 ```bash
+docker run --detach \
+  --name watchtower \
+  --restart=on-failure \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  containrrr/watchtower --label-enable --cleanup --interval 3600 && \
 docker run --detach -it \
   --name crawlingathome-worker \
+  --label=com.centurylinklabs.watchtower.enable=true \
   --restart=on-failure \
   --shm-size 1G \
   -e NAME=$NICKNAME \
