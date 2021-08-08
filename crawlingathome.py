@@ -48,9 +48,7 @@ def download_to_file(url, filename):
 def load_bloom():
     start = time.time()
     for x in ("bloom200M.bin", "clipped.bin", "failed-domains.bin"):
-        download_to_file(
-            f"http://the-eye.eu/public/AI/cahblacklists/{x}", f"blocklists/{x}"
-        )
+        download_to_file(f"http://the-eye.eu/public/AI/cahblacklists/{x}", f"blocklists/{x}")
     blocklist_dupe = BloomFilter(
         max_elements=200_000_000,
         error_rate=0.05,
@@ -74,20 +72,14 @@ def parse_wat(fopen):
     valid_data = []
     url_dedupe = set()
     blocklist_dupe, blocklist_domain, blocklist_clipped = load_bloom()
-    blocklist_format = set(
-        [".svg", ".gif", ".webp", "data:image", "javascript:", "mailto:"]
-    )
+    blocklist_format = set([".svg", ".gif", ".webp", "data:image", "javascript:", "mailto:"])
 
     for line in fopen:
         if "IMG@" not in line:
             continue
         data = ujson.loads(line)
-        links = data["Envelope"]["Payload-Metadata"]["HTTP-Response-Metadata"][
-            "HTML-Metadata"
-        ]["Links"]
-        base_url = os.path.dirname(
-            data["Envelope"]["WARC-Header-Metadata"]["WARC-Target-URI"]
-        )
+        links = data["Envelope"]["Payload-Metadata"]["HTTP-Response-Metadata"]["HTML-Metadata"]["Links"]
+        base_url = os.path.dirname(data["Envelope"]["WARC-Header-Metadata"]["WARC-Target-URI"])
         img_license = "?"
         for link in links:
             # Check if website is CC License
@@ -105,9 +97,7 @@ def parse_wat(fopen):
 
             if details[0][1] != "en":
                 continue
-            hashed_imgalt = str(
-                hashlib.md5((url + alt_text).encode("utf-8")).hexdigest()
-            )
+            hashed_imgalt = str(hashlib.md5((url + alt_text).encode("utf-8")).hexdigest())
             # Skip url with various filter
             try:
                 if (
@@ -173,9 +163,7 @@ async def dl_wat(valid_data, first_sample_id):
             )
             if process_img is not None:
                 out_fname, width, height = process_img
-                processed_samples.append(
-                    [str(sample_id), out_fname, url, alt_text, width, height, license]
-                )
+                processed_samples.append([str(sample_id), out_fname, url, alt_text, width, height, license])
         except Exception:
             return
 
@@ -227,18 +215,12 @@ if __name__ == "__main__":
 
     # Setup signal handling to gracefully exit and report on errors
     ignore_errors = [KeyboardInterrupt]
-    client_key = (
-        "https://dd28610c2d844c0ba0269a2f7cbd088e@o946916.ingest.sentry.io/5897089"
-    )
+    client_key = "https://dd28610c2d844c0ba0269a2f7cbd088e@o946916.ingest.sentry.io/5897089"
     multiexit.install()
-    sentry_sdk.init(
-        client_key, ignore_errors=ignore_errors, release=os.environ["GIT_COMMIT"]
-    )
+    sentry_sdk.init(client_key, ignore_errors=ignore_errors, release=os.environ["GIT_COMMIT"])
     multiexit.register(lambda: client.bye())
 
-    server_url = (
-        "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
-    )
+    server_url = "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
     client = cah.init(url=server_url, nickname=args.nickname)
 
     output_folder = "./save/"
@@ -262,9 +244,7 @@ if __name__ == "__main__":
             shard_of_chunk = client.shard_piece
 
             out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
-            print(
-                f"[crawling@home] shard identification {out_fname}"
-            )  # in case test fails, we need to remove bad data
+            print(f"[crawling@home] shard identification {out_fname}")  # in case test fails, we need to remove bad data
             client.log("Processing shard")
 
             chunk_to_shard("shard.wat", shard_of_chunk)
@@ -286,11 +266,7 @@ if __name__ == "__main__":
                     client.log("Upload failed")
                     raise Exception("Upload failed")
             client.completeJob(final_images)
-            print(
-                f"[crawling@home] jobs completed in {(time.time() - start):.1f} seconds"
-            )
+            print(f"[crawling@home] jobs completed in {(time.time() - start):.1f} seconds")
         except (cah.core.ServerError, requests.exceptions.ConnectionError):
-            print(
-                "[crawling@home] server error, sleeping for 30 seconds before trying again"
-            )
+            print("[crawling@home] server error, sleeping for 30 seconds before trying again")
             time.sleep(30)
