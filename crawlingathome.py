@@ -5,12 +5,12 @@ import random
 import shutil
 import subprocess
 import time
-import traceback
 from io import BytesIO
 from urllib.parse import urljoin, urlparse
 
 import asks
 import ftfy
+import multiexit
 import pandas as pd
 import pycld2 as cld2
 import requests
@@ -204,6 +204,8 @@ if __name__ == "__main__":
     server_url = "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
     client = cah.init(url=server_url, nickname=args.nickname)
     sentry_sdk.init("https://dd28610c2d844c0ba0269a2f7cbd088e@o946916.ingest.sentry.io/5897089")
+    multiexit.install()
+    multiexit.register(lambda: client.bye())
 
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
@@ -252,11 +254,3 @@ if __name__ == "__main__":
         except (cah.core.ServerError, requests.exceptions.ConnectionError):
             print("[crawling@home] server error, sleeping for 30 seconds before trying again")
             time.sleep(30)
-        except Exception:
-            sentry_sdk.capture_exception()
-            traceback.print_exc()
-            try:
-                client.bye()
-            except:
-                pass
-            break
