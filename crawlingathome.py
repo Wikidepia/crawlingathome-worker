@@ -40,6 +40,7 @@ def download_to_file(url, filename):
             r = requests.get(url, headers=headers)
             with open(filename, "wb") as f:
                 f.write(r.content)
+            break
         except Exception as e:
             print(f"[crawling@home] {e}, sleeping for 5 seconds")
             time.sleep(5)
