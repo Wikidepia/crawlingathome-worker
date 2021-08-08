@@ -201,11 +201,15 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    # Setup signal handling to gracefully exit and report on errors
+    ignore_errors = [KeyboardInterrupt]
+    client_key = "https://dd28610c2d844c0ba0269a2f7cbd088e@o946916.ingest.sentry.io/5897089"
+    multiexit.install()
+    sentry_sdk.init(client_key, ignore_errors=ignore_errors)
+    multiexit.register(lambda: client.bye())
+
     server_url = "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
     client = cah.init(url=server_url, nickname=args.nickname)
-    sentry_sdk.init("https://dd28610c2d844c0ba0269a2f7cbd088e@o946916.ingest.sentry.io/5897089")
-    multiexit.install()
-    multiexit.register(lambda: client.bye())
 
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
