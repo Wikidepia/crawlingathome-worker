@@ -205,7 +205,7 @@ if __name__ == "__main__":
     ignore_errors = [KeyboardInterrupt]
     client_key = "https://dd28610c2d844c0ba0269a2f7cbd088e@o946916.ingest.sentry.io/5897089"
     multiexit.install()
-    sentry_sdk.init(client_key, ignore_errors=ignore_errors)
+    sentry_sdk.init(client_key, ignore_errors=ignore_errors, release=os.environ['GIT_COMMIT'])
     multiexit.register(lambda: client.bye())
 
     server_url = "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
