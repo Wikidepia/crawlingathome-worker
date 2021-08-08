@@ -35,26 +35,6 @@ def remove_bad_chars(text):
     return "".join(c for c in text if c.isprintable())
 
 
-def dim_filter(url):
-    # Skip if wxh lower than 32x32
-    wxh_url = re.search(r"(\d+)x(\d+)", url.lower())
-    wnh_url = re.search(r"w=(\d+).*h=(\d+)", url.lower())
-    if wxh_url != None:
-        w = wxh_url.group(1)
-        h = wxh_url.group(2)
-    elif wnh_url != None:
-        w = wnh_url.group(1)
-        h = wnh_url.group(2)
-    else:
-        w = 1024
-        h = 1024
-
-    # 32x32x4 = 4096 bytes
-    if int(w) <= 32 and int(h) <= 32:
-        return False
-    return True
-
-
 def download_to_file(url, filename):
     headers = {"User-Agent": "Crawling@Home"}
     session = requests.Session()
@@ -113,7 +93,6 @@ def parse_wat(fopen):
                         any(bl in url.lower() for bl in blocklist_format)
                         or hashed_imgalt in blocklist_dupe
                         or hashed_imgalt in blocklist_clipped
-                        or not dim_filter(url)
                         or urlparse(url).netloc in blocklist_domain
                     ):
                         continue
