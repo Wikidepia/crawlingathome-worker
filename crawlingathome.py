@@ -46,6 +46,7 @@ def download_to_file(url, filename):
             time.sleep(5)
     raise ValueError(f"Failed to download {url}")
 
+
 def load_bloom():
     start = time.time()
     for x in ("bloom200M.bin", "clipped.bin", "failed-domains.bin"):
@@ -73,7 +74,7 @@ def parse_wat(fopen):
     valid_data = []
     url_dedupe = set()
     blocklist_dupe, blocklist_domain, blocklist_clipped = load_bloom()
-    blocklist_format = set([".svg", ".gif", ".webp", "data:image", "javascript:", "mailto:"])
+    blocklist_format = set([".svg", ".gif", ".ico", "data:image", "javascript:", "mailto:"])
 
     for line in fopen:
         if "IMG@" not in line:
@@ -98,11 +99,13 @@ def parse_wat(fopen):
 
             if details[0][1] != "en":
                 continue
-            hashed_imgalt = str(hashlib.md5((url + alt_text).encode("utf-8")).hexdigest())
+
+            hashed_imgalt = hashlib.md5((url + alt_text).encode("utf-8")).hexdigest()
             # Skip url with various filter
             try:
                 if (
                     any(bl in url.lower() for bl in blocklist_format)
+                    or url in url_dedupe
                     or hashed_imgalt in blocklist_dupe
                     or hashed_imgalt in blocklist_clipped
                     or urlparse(url).netloc in blocklist_domain
@@ -111,12 +114,10 @@ def parse_wat(fopen):
             except:
                 continue
 
+            url_dedupe.add(url)
             if not url.startswith("http"):
                 url = urljoin(base_url, url)
-            # Skip if url is already included
-            if url not in url_dedupe:
-                valid_data.append((url, alt_text, img_license))
-                url_dedupe.add(url)
+            valid_data.append((url, alt_text, img_license))
     return valid_data
 
 
@@ -130,12 +131,15 @@ def process_img_content(response, sample_id):
         with Image.open(img_data) as im:
             width, height = im.size
             im_format = im.format
-            out_fname = f"{img_output_folder}{str(sample_id)}.{im_format.lower()}"
-            if im_format not in ["JPEG", "JPG", "PNG"]:
+            if im_format not in ["JPEG", "PNG", "WEBP"]:
                 return
+            # Export WEBP image as JPEG
+            if im_format == "WEBP":
+                im_format = "JPEG"
             if im.mode != "RGB":
                 im = im.convert("RGB")
-            im.save(out_fname)
+            out_fname = f"{img_output_folder}{sample_id}.{im_format.lower()}"
+            im.save(out_fname, im_format)
     except (KeyError, UnidentifiedImageError, Image.DecompressionBombWarning):
         return
 
