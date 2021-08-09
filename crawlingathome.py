@@ -44,7 +44,7 @@ def download_to_file(url, filename):
         except Exception as e:
             print(f"[crawling@home] {e}, sleeping for 5 seconds")
             time.sleep(5)
-
+    raise ValueError(f"Failed to download {url}")
 
 def load_bloom():
     start = time.time()
