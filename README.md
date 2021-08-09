@@ -25,6 +25,14 @@ docker run --detach -it \
   wikidepia/crawlingathome-worker
 ```
 
+### Build Docker Image
+
+You can build docker image yourself with the following command
+
+```bash
+docker build --no-cache --build-arg GIT_COMMIT=$(git rev-parse HEAD) .
+```
+
 ## Contribute
 
 You are more than welcome to contribute to this development, and make it more sane :)
