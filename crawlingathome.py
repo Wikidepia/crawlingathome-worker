@@ -4,6 +4,7 @@ import os
 import random
 import shutil
 import subprocess
+import tarfile
 import time
 from io import BytesIO
 from urllib.parse import urljoin, urlparse
@@ -20,13 +21,8 @@ import trio
 import ujson
 from bloom_filter2 import BloomFilter
 from PIL import Image, UnidentifiedImageError
-import tarfile
+
 import crawlingathome_client as cah
-
-
-def chunk_using_generators(lst, n):
-    for i in range(0, len(lst), n):
-        yield lst[i : i + n]
 
 
 def remove_bad_chars(text):
@@ -294,7 +290,7 @@ if __name__ == "__main__":
 
             if args.type == "cpu":
                 shutil.rmtree(uid)
-                os.remove(f'{upload_path}.tar.gz')
+                os.remove(f"{upload_path}.tar.gz")
 
             client.completeJob(final_images)
             print(f"[crawling@home] jobs completed in {(time.time() - start):.1f} seconds")
