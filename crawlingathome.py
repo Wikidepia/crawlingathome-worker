@@ -287,10 +287,10 @@ if __name__ == "__main__":
                 if upload_status != 0:
                     client.log("Upload failed")
                     raise Exception("Upload failed")
+                os.remove(f"{upload_path}.tar.gz")
 
             if args.type == "cpu":
                 shutil.rmtree(uid)
-                os.remove(f"{upload_path}.tar.gz")
 
             client.completeJob(final_images)
             print(f"[crawling@home] jobs completed in {(time.time() - start):.1f} seconds")
