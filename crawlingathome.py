@@ -90,6 +90,8 @@ def parse_wat(fopen):
             if "alt" not in link or link["alt"] == "":
                 continue
             url = link["url"]
+            if not url.startswith("http"):
+                url = urljoin(base_url, url)
             alt_text = ftfy.fix_text(link["alt"].replace("\n", " ")).strip()
 
             try:
@@ -115,8 +117,6 @@ def parse_wat(fopen):
                 continue
 
             url_dedupe.add(url)
-            if not url.startswith("http"):
-                url = urljoin(base_url, url)
             valid_data.append((url, alt_text, img_license))
     return valid_data
 
@@ -287,7 +287,7 @@ if __name__ == "__main__":
                 shutil.move("save", uid)
 
             if not args.debug:
-                upload_status = upload(upload_path, client.type, client.upload_address)
+                upload_status = upload(upload_path, args.type, client.upload_address)
                 if upload_status != 0:
                     client.log("Upload failed")
                     raise Exception("Upload failed")
