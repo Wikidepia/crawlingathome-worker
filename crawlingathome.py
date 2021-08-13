@@ -271,8 +271,8 @@ if __name__ == "__main__":
             dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
             dlparse_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
 
-            client.log("Dropping NSFW keywords")
             if args.type == "hybrid":
+                client.log("Dropping NSFW keywords")
                 # Filter with local CPU / GPU
                 final_images = clip_filter.filter(dlparse_df, out_fname)
                 upload_path = f"{output_folder}/*{out_fname}*"
@@ -287,9 +287,10 @@ if __name__ == "__main__":
                 if upload_status != 0:
                     client.log("Upload failed")
                     raise Exception("Upload failed")
-                os.remove(f"{upload_path}.tar.gz")
 
             if args.type == "cpu":
+                if os.path.exists(f"{upload_path}.tar.gz"):
+                    os.remove(f"{upload_path}.tar.gz")
                 shutil.rmtree(uid)
 
             client.completeJob(final_images)
