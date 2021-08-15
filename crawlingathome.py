@@ -128,6 +128,7 @@ def process_img_content(response, sample_id):
         with Image.open(img_data) as im:
             width, height = im.size
             im_format = im.format
+            exif = im.info.get("exif", b"")
             if im_format not in ["JPEG", "PNG", "WEBP"]:
                 return
             # Export WEBP image as JPEG
@@ -136,7 +137,7 @@ def process_img_content(response, sample_id):
             if im.mode != "RGB":
                 im = im.convert("RGB")
             out_fname = f"{img_output_folder}{sample_id}.{im_format.lower()}"
-            im.save(out_fname, im_format)
+            im.save(out_fname, im_format, exif=exif)
     except (KeyError, UnidentifiedImageError, Image.DecompressionBombWarning):
         return
 
