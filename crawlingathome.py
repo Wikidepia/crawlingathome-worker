@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import logging
 import os
 import random
 import shutil
@@ -38,7 +39,7 @@ def download_to_file(url, filename):
                 f.write(r.content)
             return
         except Exception as e:
-            print(f"[crawling@home] {e}, sleeping for 5 seconds")
+            logging.error(f"[crawling@home] {e}, sleeping for 5 seconds")
             time.sleep(5)
     raise ValueError(f"Failed to download {url}")
 
@@ -62,7 +63,7 @@ def load_bloom():
         error_rate=0.01,
         filename=("blocklists/failed-domains.bin", -1),
     )
-    print(f"[crawling@home] updated filters in {(time.time()-start):.1f}")
+    logging.info(f"[crawling@home] updated filters in {(time.time()-start):.1f}")
     return blocklist_dupe, blocklist_domain, blocklist_clipped
 
 
@@ -225,6 +226,7 @@ if __name__ == "__main__":
         help="Use debug server & disable upload",
     )
     args = parser.parse_args()
+    logging.basicConfig(format="[%(asctime)s crawling@home] %(message)s", datefmt="%H:%M", level=logging.INFO)
 
     # Setup signal handling to gracefully exit and report on errors
     ignore_errors = [KeyboardInterrupt]
@@ -259,7 +261,9 @@ if __name__ == "__main__":
             shard_of_chunk = client.shard_piece
 
             out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
-            print(f"[crawling@home] shard identification {out_fname}")  # in case test fails, we need to remove bad data
+            logging.info(
+                f"[crawling@home] shard identification {out_fname}"
+            )  # in case test fails, we need to remove bad data
             client.log("Processing shard")
 
             chunk_to_shard("shard.wat", shard_of_chunk)
@@ -294,7 +298,7 @@ if __name__ == "__main__":
                 shutil.rmtree(uid)
 
             client.completeJob(final_images)
-            print(f"[crawling@home] jobs completed in {(time.time() - start):.1f} seconds")
+            logging.info(f"[crawling@home] jobs completed in {(time.time() - start):.1f} seconds")
         except (cah.core.ServerError, requests.exceptions.ConnectionError):
-            print("[crawling@home] server error, sleeping for 30 seconds before trying again")
+            logging.error("[crawling@home] server error, sleeping for 30 seconds before trying again")
             time.sleep(30)
