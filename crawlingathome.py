@@ -53,6 +53,7 @@ def load_bloom(init=False):
 
     for x in dl_list:
         download_to_file(f"http://the-eye.eu/public/AI/cahblacklists/{x}", f"blocklists/{x}")
+    logging.info(f"updated filters in {(time.time()-start):.1f}")
 
     if init:
         return
@@ -71,7 +72,6 @@ def load_bloom(init=False):
         error_rate=0.01,
         filename=("blocklists/failed-domains.bin", -1),
     )
-    logging.info(f"updated filters in {(time.time()-start):.1f}")
     return blocklist_domain, blocklist_hash
 
 
