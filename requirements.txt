@@ -1,4 +1,3 @@
-git+https://github.com/openai/CLIP
 git+https://github.com/Wikidepia/asks
 https://github.com/Wikidepia/crawlingathome-wheels/raw/master/pycld2/pycld2-0.42-cp38-cp38-linux_x86_64.whl
 bloom-filter2
