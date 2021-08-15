@@ -4,9 +4,11 @@ import os
 import random
 import shutil
 import subprocess
+import tarfile
 import time
 from io import BytesIO
 from urllib.parse import urljoin, urlparse
+from uuid import uuid4
 
 import asks
 import ftfy
@@ -20,13 +22,7 @@ import ujson
 from bloom_filter2 import BloomFilter
 from PIL import Image, UnidentifiedImageError
 
-import clip_filter
 import crawlingathome_client as cah
-
-
-def chunk_using_generators(lst, n):
-    for i in range(0, len(lst), n):
-        yield lst[i : i + n]
 
 
 def remove_bad_chars(text):
@@ -90,6 +86,8 @@ def parse_wat(fopen):
             if "alt" not in link or link["alt"] == "":
                 continue
             url = link["url"]
+            if not url.startswith("http"):
+                url = urljoin(base_url, url)
             alt_text = ftfy.fix_text(link["alt"].replace("\n", " ")).strip()
 
             try:
@@ -115,8 +113,6 @@ def parse_wat(fopen):
                 continue
 
             url_dedupe.add(url)
-            if not url.startswith("http"):
-                url = urljoin(base_url, url)
             valid_data.append((url, alt_text, img_license))
     return valid_data
 
@@ -183,11 +179,14 @@ async def dl_wat(valid_data, first_sample_id):
     )
 
 
-def upload(source: str, client_type: str):
-    client_type = client_type.upper()
-    target = "gpujobs" if client_type == "CPU" else "CAH"
-    options = "-rsh" if client_type == "CPU" else "-zh"
-    return os.system(f"rsync {options} {source} archiveteam@88.198.2.17::{target}")
+def upload(source, client_type, target):
+    if client_type == "cpu":
+        with tarfile.open(f"{source}.tar.gz", "w:gz") as tar:
+            tar.add(source, arcname=os.path.basename(source))
+        source = f"{source}.tar.gz"
+
+    options = "-av" if client_type == "cpu" else "-zh"
+    return os.system(f"rsync {options} {source} {target}")
 
 
 def chunk_to_shard(fname, shard_piece):
@@ -211,10 +210,19 @@ if __name__ == "__main__":
         help="Nickname for leaderboard",
     )
     parser.add_argument(
+        "-t",
+        "--type",
+        required=False,
+        type=str.lower,
+        default="hybrid",
+        choices=["cpu", "hybrid"],
+        help="Worker type selected in the list: cpu, hybrid",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         required=False,
-        help="Use debug server & disable GDrive upload",
+        help="Use debug server & disable upload",
     )
     args = parser.parse_args()
 
@@ -225,8 +233,10 @@ if __name__ == "__main__":
     sentry_sdk.init(client_key, ignore_errors=ignore_errors, release=os.environ["GIT_COMMIT"])
     multiexit.register(lambda: client.bye())
 
+    if args.type == "hybrid":
+        import clip_filter
     server_url = "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
-    client = cah.init(url=server_url, nickname=args.nickname)
+    client = cah.init(url=server_url, nickname=args.nickname, type=args.type)
 
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
@@ -261,15 +271,28 @@ if __name__ == "__main__":
             dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
             dlparse_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
 
-            client.log("Dropping NSFW keywords")
-            # Filter with local CPU / GPU
-            final_images = clip_filter.filter(dlparse_df, out_fname)
+            if args.type == "hybrid":
+                client.log("Dropping NSFW keywords")
+                # Filter with local CPU / GPU
+                final_images = clip_filter.filter(dlparse_df, out_fname)
+                upload_path = f"{output_folder}/*{out_fname}*"
+            else:
+                # Move result to random uuid folder
+                upload_path = uid = uuid4().hex
+                final_images = f"rsync {uid}"
+                shutil.move("save", uid)
 
             if not args.debug:
-                upload_status = upload(f"{output_folder}/*{out_fname}*", client.type)
+                upload_status = upload(upload_path, args.type, client.upload_address)
                 if upload_status != 0:
                     client.log("Upload failed")
                     raise Exception("Upload failed")
+
+            if args.type == "cpu":
+                if os.path.exists(f"{upload_path}.tar.gz"):
+                    os.remove(f"{upload_path}.tar.gz")
+                shutil.rmtree(uid)
+
             client.completeJob(final_images)
             print(f"[crawling@home] jobs completed in {(time.time() - start):.1f} seconds")
         except (cah.core.ServerError, requests.exceptions.ConnectionError):
