@@ -58,7 +58,8 @@ def load_bloom(init=False):
     if init:
         return
     blocklist_hash = []
-    filters_path = glob("blocklists/*.bin").remove("blocklists/failed-domains.bin")
+    filters_path = glob("blocklists/*.bin")
+    filters_path.remove("blocklists/failed-domains.bin")
     for map_filter in filters_path:
         blocklist_hash.append(
             BloomFilter(
