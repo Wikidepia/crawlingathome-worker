@@ -39,7 +39,7 @@ def download_to_file(url, filename):
                 f.write(r.content)
             return
         except Exception as e:
-            logging.error(f"[crawling@home] {e}, sleeping for 5 seconds")
+            logging.error(f"{e}, sleeping for 5 seconds")
             time.sleep(5)
     raise ValueError(f"Failed to download {url}")
 
@@ -63,7 +63,7 @@ def load_bloom():
         error_rate=0.01,
         filename=("blocklists/failed-domains.bin", -1),
     )
-    logging.info(f"[crawling@home] updated filters in {(time.time()-start):.1f}")
+    logging.info(f"updated filters in {(time.time()-start):.1f}")
     return blocklist_dupe, blocklist_domain, blocklist_clipped
 
 
@@ -262,7 +262,7 @@ if __name__ == "__main__":
 
             out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
             logging.info(
-                f"[crawling@home] shard identification {out_fname}"
+                f"shard identification {out_fname}"
             )  # in case test fails, we need to remove bad data
             client.log("Processing shard")
 
@@ -298,7 +298,7 @@ if __name__ == "__main__":
                 shutil.rmtree(uid)
 
             client.completeJob(final_images)
-            logging.info(f"[crawling@home] jobs completed in {(time.time() - start):.1f} seconds")
+            logging.info(f"jobs completed in {(time.time() - start):.1f} seconds")
         except (cah.core.ServerError, requests.exceptions.ConnectionError):
-            logging.error("[crawling@home] server error, sleeping for 30 seconds before trying again")
+            logging.error("server error, sleeping for 30 seconds before trying again")
             time.sleep(30)
