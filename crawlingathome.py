@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tarfile
 import time
+from glob import glob
 from io import BytesIO
 from urllib.parse import urljoin, urlparse
 from uuid import uuid4
@@ -44,33 +45,40 @@ def download_to_file(url, filename):
     raise ValueError(f"Failed to download {url}")
 
 
-def load_bloom():
+def load_bloom(init=False):
     start = time.time()
-    for x in ("bloom200M.bin", "clipped.bin", "failed-domains.bin"):
+    dl_list = ("bloom_active.bin", "clipped_active.bin")
+    if init:
+        dl_list = ("bloom200M.bin", "clipped.bin", "failed-domains.bin")
+
+    for x in dl_list:
         download_to_file(f"http://the-eye.eu/public/AI/cahblacklists/{x}", f"blocklists/{x}")
-    blocklist_dupe = BloomFilter(
-        max_elements=200_000_000,
-        error_rate=0.05,
-        filename=("blocklists/bloom200M.bin", -1),
-    )
-    blocklist_clipped = BloomFilter(
-        max_elements=200_000_000,
-        error_rate=0.05,
-        filename=("blocklists/clipped.bin", -1),
-    )
+
+    if init:
+        return
+    blocklist_hash = []
+    filters_path = glob("blocklists/*").remove("blocklists/failed-domains.bin")
+    for map_filter in filters_path:
+        blocklist_hash.append(
+            BloomFilter(
+                max_elements=200_000_000,
+                error_rate=0.05,
+                filename=(map_filter, -1),
+            )
+        )
     blocklist_domain = BloomFilter(
         max_elements=10_000_000,
         error_rate=0.01,
         filename=("blocklists/failed-domains.bin", -1),
     )
     logging.info(f"updated filters in {(time.time()-start):.1f}")
-    return blocklist_dupe, blocklist_domain, blocklist_clipped
+    return blocklist_domain, blocklist_hash
 
 
 def parse_wat(fopen):
     valid_data = []
     url_dedupe = set()
-    blocklist_dupe, blocklist_domain, blocklist_clipped = load_bloom()
+    blocklist_domain, blocklist_hash = load_bloom()
     blocklist_format = set([".svg", ".gif", ".ico", "data:image", "javascript:", "mailto:"])
 
     for line in fopen:
@@ -104,9 +112,8 @@ def parse_wat(fopen):
             try:
                 if (
                     any(bl in url.lower() for bl in blocklist_format)
+                    or any(hashed_imgalt in bl for bl in blocklist_hash)
                     or url in url_dedupe
-                    or hashed_imgalt in blocklist_dupe
-                    or hashed_imgalt in blocklist_clipped
                     or urlparse(url).netloc in blocklist_domain
                 ):
                     continue
@@ -240,6 +247,7 @@ if __name__ == "__main__":
         import clip_filter
     server_url = "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
     client = cah.init(url=server_url, nickname=args.nickname, type=args.type)
+    load_bloom(init=True)
 
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
@@ -262,9 +270,7 @@ if __name__ == "__main__":
             shard_of_chunk = client.shard_piece
 
             out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
-            logging.info(
-                f"shard identification {out_fname}"
-            )  # in case test fails, we need to remove bad data
+            logging.info(f"shard identification {out_fname}")  # in case test fails, we need to remove bad data
             client.log("Processing shard")
 
             chunk_to_shard("shard.wat", shard_of_chunk)
