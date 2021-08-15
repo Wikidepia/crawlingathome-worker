@@ -4,6 +4,7 @@ bloom-filter2
 ftfy
 multiexit
 pandas
+Pillow
 sentry-sdk
 tfreecord
 trio
