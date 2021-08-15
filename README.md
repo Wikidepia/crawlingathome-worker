@@ -22,7 +22,7 @@ docker run --detach -it \
   --restart=on-failure \
   --shm-size 1G \
   -e NAME=$NICKNAME \
-  wikidepia/crawlingathome-worker
+  wikidepia/crawlingathome-worker # Use wikidepia/crawlingathome-worker:latest-cpu for CPU worker
 ```
 
 ### Build Docker Image
