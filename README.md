@@ -10,6 +10,8 @@
 
 To use worker docker images run the following commands, where $NICKNAME is your nickname that will be showed in leaderboard.
 
+To run hybrid worker replace `latest-cpu` with `latest`.
+
 ```bash
 docker run --detach \
   --name watchtower \
@@ -22,7 +24,7 @@ docker run --detach -it \
   --restart=on-failure \
   --shm-size 1G \
   -e NAME=$NICKNAME \
-  wikidepia/crawlingathome-worker # Use wikidepia/crawlingathome-worker:latest-cpu for CPU worker
+  wikidepia/crawlingathome-worker:latest-cpu
 ```
 
 ### Build Docker Image
