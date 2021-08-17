@@ -195,7 +195,7 @@ def upload(source, client_type, target):
             tar.add(source, arcname=os.path.basename(source))
         source = f"{source}.tar.gz"
 
-    options = "-av" if client_type == "cpu" else "-zh"
+    options = "-a" if client_type == "cpu" else "-zh"
     return os.system(f"rsync {options} {source} {target}")
 
 
