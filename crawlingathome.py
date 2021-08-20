@@ -7,8 +7,7 @@ import shutil
 import subprocess
 import tarfile
 import time
-from glob import glob
-from io import BytesIO
+from io import BytesIO, StringIO
 from urllib.parse import urljoin, urlparse
 from uuid import uuid4
 
@@ -105,7 +104,7 @@ def parse_wat(fopen):
             valid_data.append((url, alt_text, img_license))
 
     # Send URLs to bloom filter server
-    urls = BytesIO("\n".join(url_dedupe))
+    urls = StringIO("\n".join(url_dedupe))
     r = requests.post("http://bloom.depia.wiki/deduplicate/", files={"file": urls}, data={"key": "urls"})
     valid_data = [x for x in valid_data if x[0] in r.text]
     return valid_data
@@ -291,7 +290,7 @@ if __name__ == "__main__":
 
             client.completeJob(final_images)
             # Send URLs to bloom filter server
-            urls = BytesIO("\n".join([x[0] for x in parsed_data]))
+            urls = StringIO("\n".join([x[0] for x in parsed_data]))
             requests.post("http://bloom.depia.wiki/deduplicate/", files={"file": urls}, data={"key": "urls"})
             logging.info(f"jobs completed in {(time.time() - start):.1f} seconds")
         except (cah.core.ServerError, requests.exceptions.ConnectionError):
