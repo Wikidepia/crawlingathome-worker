@@ -291,7 +291,7 @@ if __name__ == "__main__":
             client.completeJob(final_images)
             # Send URLs to bloom filter server
             urls = StringIO("\n".join([x[0] for x in parsed_data]))
-            requests.post("http://bloom.depia.wiki/deduplicate/", files={"file": urls}, data={"key": "urls"})
+            requests.post("http://bloom.depia.wiki/add/", files={"file": urls}, data={"key": "urls"})
             logging.info(f"jobs completed in {(time.time() - start):.1f} seconds")
         except (cah.core.ServerError, requests.exceptions.ConnectionError):
             logging.error("server error, sleeping for 30 seconds before trying again")
