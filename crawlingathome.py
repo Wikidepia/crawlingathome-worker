@@ -45,41 +45,23 @@ def download_to_file(url, filename):
     raise ValueError(f"Failed to download {url}")
 
 
-def load_bloom(init=False):
-    start = time.time()
-    dl_list = ("bloom_active.bin", "clipped_active.bin")
-    if init:
-        dl_list = ("bloom200M.bin", "clipped.bin", "failed-domains.bin")
+def load_bloom():
+    bloom_path = "blocklists/failed-domains.bin"
+    if not os.path.exists(bloom_path):
+        download_to_file("http://the-eye.eu/public/AI/cahblacklists/failed-domains.bin", bloom_path)
 
-    for x in dl_list:
-        download_to_file(f"http://the-eye.eu/public/AI/cahblacklists/{x}", f"blocklists/{x}")
-    logging.info(f"updated filters in {(time.time()-start):.1f}")
-
-    if init:
-        return
-    blocklist_hash = []
-    filters_path = glob("blocklists/*.bin")
-    filters_path.remove("blocklists/failed-domains.bin")
-    for map_filter in filters_path:
-        blocklist_hash.append(
-            BloomFilter(
-                max_elements=200_000_000,
-                error_rate=0.05,
-                filename=(map_filter, -1),
-            )
-        )
     blocklist_domain = BloomFilter(
         max_elements=10_000_000,
         error_rate=0.01,
         filename=("blocklists/failed-domains.bin", -1),
     )
-    return blocklist_domain, blocklist_hash
+    return blocklist_domain
 
 
 def parse_wat(fopen):
     valid_data = []
     url_dedupe = set()
-    blocklist_domain, blocklist_hash = load_bloom()
+    blocklist_domain = load_bloom()
     blocklist_format = set([".svg", ".gif", ".ico", "data:image", "javascript:", "mailto:"])
 
     for line in fopen:
@@ -108,12 +90,10 @@ def parse_wat(fopen):
             if details[0][1] != "en":
                 continue
 
-            hashed_imgalt = hashlib.md5((url + alt_text).encode("utf-8")).hexdigest()
             # Skip url with various filter
             try:
                 if (
                     any(bl in url.lower() for bl in blocklist_format)
-                    or any(hashed_imgalt in bl for bl in blocklist_hash)
                     or url in url_dedupe
                     or urlparse(url).netloc in blocklist_domain
                 ):
@@ -123,6 +103,11 @@ def parse_wat(fopen):
 
             url_dedupe.add(url)
             valid_data.append((url, alt_text, img_license))
+
+    # Send URLs to bloom filter server
+    urls = BytesIO("\n".join(url_dedupe))
+    r = requests.post("http://bloom.depia.wiki/deduplicate/", files={"file": urls}, data={"key": "urls"})
+    valid_data = [x for x in valid_data if x[0] in r.text]
     return valid_data
 
 
@@ -248,7 +233,6 @@ if __name__ == "__main__":
         import clip_filter
     server_url = "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
     client = cah.init(url=server_url, nickname=args.nickname, type=args.type)
-    load_bloom(init=True)
 
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
@@ -306,6 +290,9 @@ if __name__ == "__main__":
                 shutil.rmtree(uid)
 
             client.completeJob(final_images)
+            # Send URLs to bloom filter server
+            urls = BytesIO("\n".join([x[0] for x in parsed_data]))
+            requests.post("http://bloom.depia.wiki/deduplicate/", files={"file": urls}, data={"key": "urls"})
             logging.info(f"jobs completed in {(time.time() - start):.1f} seconds")
         except (cah.core.ServerError, requests.exceptions.ConnectionError):
             logging.error("server error, sleeping for 30 seconds before trying again")
