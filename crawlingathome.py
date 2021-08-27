@@ -158,11 +158,7 @@ async def dl_wat(valid_data, first_sample_id):
             cur_sample_id += 1
             n.start_soon(_request, data, cur_sample_id)
 
-    return pd.DataFrame(
-        processed_samples,
-        columns=["SAMPLE_ID", "PATH", "URL", "TEXT", "HEIGHT", "WIDTH", "LICENSE"],
-    )
-
+    return processed_samples
 
 def upload(source, client_type, target):
     if client_type == "cpu":
