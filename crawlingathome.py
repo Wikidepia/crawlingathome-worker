@@ -141,7 +141,7 @@ async def dl_wat(valid_data, first_sample_id):
     }
 
     async def _request(data, sample_id):
-        url, alt_text, license = data
+        url, alt_text, license, _ = data
         try:
             process_img = process_img_content(
                 await session.get(url, timeout=3, connection_timeout=10, retries=-1),
