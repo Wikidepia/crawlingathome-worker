@@ -4,6 +4,7 @@ bloom-filter2
 ftfy
 multiexit
 Pillow
+requests
 sentry-sdk
 trio
 ujson
