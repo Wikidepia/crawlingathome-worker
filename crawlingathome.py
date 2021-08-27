@@ -8,8 +8,7 @@ import shutil
 import subprocess
 import tarfile
 import time
-from glob import glob
-from io import BytesIO
+from io import BytesIO, StringIO
 from urllib.parse import urljoin, urlparse
 from uuid import uuid4
 
@@ -31,55 +30,25 @@ def remove_bad_chars(text):
     return "".join(c for c in text if c.isprintable())
 
 
-def download_to_file(url, filename):
-    headers = {"User-Agent": "Crawling@Home"}
-    for _ in range(5):
-        try:
-            r = requests.get(url, headers=headers)
-            with open(filename, "wb") as f:
-                f.write(r.content)
-            return
-        except Exception as e:
-            logging.error(f"{e}, sleeping for 5 seconds")
-            time.sleep(5)
-    raise ValueError(f"Failed to download {url}")
+def load_bloom():
+    url = "http://the-eye.eu/public/AI/cahblacklists/failed-domains.bin"
+    if not os.path.exists("failed-domains.bin"):
+        r = requests.get(url, headers={"User-Agent": "Crawling@Home"})
+        with open("failed-domains.bin", "wb") as f:
+            f.write(r.content)
 
-
-def load_bloom(init=False):
-    start = time.time()
-    dl_list = ("bloom_active.bin", "clipped_active.bin")
-    if init:
-        dl_list = ("bloom200M.bin", "clipped.bin", "failed-domains.bin")
-
-    for x in dl_list:
-        download_to_file(f"http://the-eye.eu/public/AI/cahblacklists/{x}", f"blocklists/{x}")
-    logging.info(f"updated filters in {(time.time()-start):.1f}")
-
-    if init:
-        return
-    blocklist_hash = []
-    filters_path = glob("blocklists/*.bin")
-    filters_path.remove("blocklists/failed-domains.bin")
-    for map_filter in filters_path:
-        blocklist_hash.append(
-            BloomFilter(
-                max_elements=200_000_000,
-                error_rate=0.05,
-                filename=(map_filter, -1),
-            )
-        )
     blocklist_domain = BloomFilter(
         max_elements=10_000_000,
         error_rate=0.01,
-        filename=("blocklists/failed-domains.bin", -1),
+        filename=("failed-domains.bin", -1),
     )
-    return blocklist_domain, blocklist_hash
+    return blocklist_domain
 
 
 def parse_wat(fopen):
     valid_data = []
     url_dedupe = set()
-    blocklist_domain, blocklist_hash = load_bloom()
+    blocklist_domain = load_bloom()
     blocklist_format = set([".svg", ".gif", ".ico", "data:image", "javascript:", "mailto:"])
 
     for line in fopen:
@@ -113,16 +82,22 @@ def parse_wat(fopen):
             try:
                 if (
                     any(bl in url.lower() for bl in blocklist_format)
-                    or any(hashed_imgalt in bl for bl in blocklist_hash)
                     or url in url_dedupe
                     or urlparse(url).netloc in blocklist_domain
+                    or len(url) > 2048 # prevent bufio.scanner too long
                 ):
                     continue
             except:
                 continue
 
             url_dedupe.add(url)
-            valid_data.append((url, alt_text, img_license))
+            valid_data.append((url, alt_text, img_license, hashed_imgalt))
+
+    # Deduplicate
+    hashes = StringIO("\n".join([x[3] for x in valid_data]))
+    r = requests.post("http://116.202.162.146:8000/deduplicate/", files={"file": hashes}, data={"key": "clipped"})
+    deduped_hashes = set(r.text.split("\n"))
+    valid_data = [x for x in valid_data if x[3] in deduped_hashes]
     return valid_data
 
 
@@ -251,7 +226,6 @@ if __name__ == "__main__":
 
     server_url = "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
     client = cah.init(url=server_url, nickname=args.nickname, type=args.type)
-    load_bloom(init=True)
 
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
