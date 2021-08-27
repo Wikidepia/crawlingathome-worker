@@ -1,4 +1,5 @@
 import argparse
+import csv
 import hashlib
 import logging
 import os
@@ -15,7 +16,6 @@ from uuid import uuid4
 import asks
 import ftfy
 import multiexit
-import pandas as pd
 import pycld2 as cld2
 import requests
 import sentry_sdk
@@ -245,7 +245,10 @@ if __name__ == "__main__":
     multiexit.register(lambda: client.bye())
 
     if args.type == "hybrid":
+        import pandas as pd
+
         import clip_filter
+
     server_url = "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
     client = cah.init(url=server_url, nickname=args.nickname, type=args.type)
     load_bloom(init=True)
@@ -281,9 +284,13 @@ if __name__ == "__main__":
 
             client.log("Downloading images")
             dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
-            dlparse_df.to_csv(f"{output_folder}{out_fname}.csv", index=False, sep="|")
+            with open(f"{output_folder}{out_fname}.csv", "w") as outfile:
+                writer = csv.writer(outfile, delimiter="|")
+                writer.writerow(["SAMPLE_ID", "PATH", "URL", "HEIGHT", "WIDTH", "LICENSE"])
+                writer.writerows(dlparse_df)
 
             if args.type == "hybrid":
+                dlparse_df = pd.read_csv(f"{output_folder}{out_fname}.csv", sep="|")
                 client.log("Dropping NSFW keywords")
                 # Filter with local CPU / GPU
                 final_images = clip_filter.filter(dlparse_df, out_fname)

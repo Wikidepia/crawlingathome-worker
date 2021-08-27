@@ -3,9 +3,7 @@ https://github.com/Wikidepia/crawlingathome-wheels/raw/master/pycld2/pycld2-0.42
 bloom-filter2
 ftfy
 multiexit
-pandas
 Pillow
 sentry-sdk
-tfreecord
 trio
 ujson
