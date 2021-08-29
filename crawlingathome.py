@@ -95,7 +95,7 @@ def parse_wat(fopen):
             valid_data.append((url, alt_text, img_license, hashed_imgalt))
 
     # Deduplicate
-    hashes = StringIO("\n".join([x[3] for x in valid_data]))
+    hashes = StringIO("\n".join(x[3] for x in valid_data))
     r = requests.post("http://116.202.162.146:8000/deduplicate/", files={"file": hashes}, data={"key": "clipped"})
     deduped_hashes = set(r.text.split("\n"))
     valid_data = [x for x in valid_data if x[3] in deduped_hashes]
@@ -217,12 +217,6 @@ if __name__ == "__main__":
 
     while True:
         start = time.time()
-        if os.path.exists(output_folder):
-            shutil.rmtree(output_folder)
-
-        os.mkdir(output_folder)
-        os.mkdir(img_output_folder)
-
         try:
             if client.jobCount() < 0:
                 break
@@ -232,6 +226,12 @@ if __name__ == "__main__":
 
             chunk_to_shard("shard.wat")
             for shard_of_chunk in range(2):
+                if os.path.exists(output_folder):
+                    shutil.rmtree(output_folder)
+
+                os.mkdir(output_folder)
+                os.mkdir(img_output_folder)
+
                 first_sample_id = int(client.shards[shard_of_chunk][1]["start_id"])
                 last_sample_id = int(client.shards[shard_of_chunk][1]["end_id"])
 
