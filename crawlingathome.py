@@ -24,6 +24,7 @@ from bloom_filter2 import BloomFilter
 from PIL import Image, UnidentifiedImageError
 
 import crawlingathome_client as cah
+from crawlingathome_client.temp import TempCPUWorker
 
 
 def remove_bad_chars(text):
@@ -65,8 +66,6 @@ def parse_wat(fopen):
             if "alt" not in link or link["alt"] == "":
                 continue
             url = link["url"]
-            if not url.startswith("http"):
-                url = urljoin(base_url, url)
             alt_text = ftfy.fix_text(link["alt"].replace("\n", " ")).strip()
 
             try:
@@ -77,6 +76,8 @@ def parse_wat(fopen):
             if details[0][1] != "en":
                 continue
 
+            if not url.startswith("http"):
+                url = urljoin(base_url, url)
             hashed_imgalt = hashlib.md5((url + alt_text).encode("utf-8")).hexdigest()
             # Skip url with various filter
             try:
@@ -84,7 +85,7 @@ def parse_wat(fopen):
                     any(bl in url.lower() for bl in blocklist_format)
                     or url in url_dedupe
                     or urlparse(url).netloc in blocklist_domain
-                    or len(url) > 2048 # prevent bufio.scanner too long
+                    or len(url) > 2048  # prevent bufio.scanner too long
                 ):
                     continue
             except:
@@ -160,6 +161,7 @@ async def dl_wat(valid_data, first_sample_id):
 
     return processed_samples
 
+
 def upload(source, client_type, target):
     if client_type == "cpu":
         with tarfile.open(f"{source}.tar.gz", "w:gz") as tar:
@@ -170,15 +172,16 @@ def upload(source, client_type, target):
     return os.system(f"rsync {options} {source} {target}")
 
 
-def chunk_to_shard(fname, shard_piece):
+def chunk_to_shard(fname):
     wc_l = subprocess.run(["wc", "-l", fname], capture_output=True)
     line_count = int(wc_l.stdout.decode("utf-8").split()[0]) // 2
 
-    with open("sharded.wat", "w") as f:
-        if shard_piece == 0:
-            subprocess.run(["head", "-n", str(line_count), fname], stdout=f)
-        elif shard_piece == 1:
-            subprocess.run(["tail", "-n", "+" + str(line_count + 1), fname], stdout=f)
+    for shard_piece in range(2):
+        with open(f"sharded-{shard_piece}.wat", "w") as f:
+            if shard_piece == 0:
+                subprocess.run(["head", "-n", str(line_count), fname], stdout=f)
+            elif shard_piece == 1:
+                subprocess.run(["tail", "-n", "+" + str(line_count + 1), fname], stdout=f)
 
 
 if __name__ == "__main__":
@@ -207,7 +210,7 @@ if __name__ == "__main__":
     multiexit.register(lambda: client.bye())
 
     server_url = "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
-    client = cah.init(url=server_url, nickname=args.nickname, type=args.type)
+    client = TempCPUWorker(url=server_url, nickname=args.nickname)
 
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
@@ -223,44 +226,46 @@ if __name__ == "__main__":
         try:
             if client.jobCount() < 0:
                 break
+            complete = {}
             client.newJob()
-            client.downloadShard()
-            first_sample_id = int(client.start_id)
-            last_sample_id = int(client.end_id)
-            shard_of_chunk = client.shard_piece
+            client.downloadWat()
 
-            out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
-            logging.info(f"shard identification {out_fname}")  # in case test fails, we need to remove bad data
-            client.log("Processing shard")
+            chunk_to_shard("shard.wat")
+            for shard_of_chunk in range(2):
+                first_sample_id = int(client.shards[shard_of_chunk][1]["start_id"])
+                last_sample_id = int(client.shards[shard_of_chunk][1]["end_id"])
 
-            chunk_to_shard("shard.wat", shard_of_chunk)
-            with open("sharded.wat", "r") as shard_file:
-                parsed_data = parse_wat(shard_file)
-            random.shuffle(parsed_data)
+                out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
+                logging.info(f"shard identification {out_fname}")
+                client.log("Processing shard")
 
-            client.log("Downloading images")
-            dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
-            with open(f"{output_folder}{out_fname}.csv", "w") as outfile:
-                writer = csv.writer(outfile, delimiter="|")
-                writer.writerow(["SAMPLE_ID", "PATH", "URL", "HEIGHT", "WIDTH", "LICENSE"])
-                writer.writerows(dlparse_df)
+                with open(f"sharded-{shard_of_chunk}.wat", "r") as shard_file:
+                    parsed_data = parse_wat(shard_file)
+                random.shuffle(parsed_data)
 
-            # Move result to random uuid folder
-            upload_path = uid = uuid4().hex
-            final_images = f"rsync {uid}"
-            shutil.move("save", uid)
+                client.log("Downloading images")
+                dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
+                with open(f"{output_folder}{out_fname}.csv", "w") as outfile:
+                    writer = csv.writer(outfile, delimiter="|")
+                    writer.writerow(["SAMPLE_ID", "PATH", "URL", "HEIGHT", "WIDTH", "LICENSE"])
+                    writer.writerows(dlparse_df)
 
-            if not args.debug:
-                upload_status = upload(upload_path, args.type, client.upload_address)
-                if upload_status != 0:
-                    client.log("Upload failed")
-                    raise Exception("Upload failed")
+                # Move result to random uuid folder
+                upload_path = uuid4().hex
+                shutil.move("save", upload_path)
 
-            if os.path.exists(f"{upload_path}.tar.gz"):
-                os.remove(f"{upload_path}.tar.gz")
-            shutil.rmtree(uid)
+                if not args.debug:
+                    upload_status = upload(upload_path, args.type, client.upload_address)
+                    if upload_status != 0:
+                        client.log("Upload failed")
+                        raise Exception("Upload failed")
 
-            client.completeJob(final_images)
+                if os.path.exists(f"{upload_path}.tar.gz"):
+                    os.remove(f"{upload_path}.tar.gz")
+                shutil.rmtree(upload_path)
+
+                complete[str(client.shards[shard_of_chunk][0])] = f"rsync {upload_path}"
+            client.completeJob(complete)
             logging.info(f"jobs completed in {(time.time() - start):.1f} seconds")
         except (cah.core.ServerError, requests.exceptions.ConnectionError):
             logging.error("server error, sleeping for 30 seconds before trying again")
