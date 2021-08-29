@@ -163,13 +163,11 @@ async def dl_wat(valid_data, first_sample_id):
 
 
 def upload(source, client_type, target):
-    if client_type == "cpu":
-        with tarfile.open(f"{source}.tar.gz", "w:gz") as tar:
-            tar.add(source, arcname=os.path.basename(source))
-        source = f"{source}.tar.gz"
+    with tarfile.open(f"{source}.tar.gz", "w:gz") as tar:
+        tar.add(source, arcname=os.path.basename(source))
+    source = f"{source}.tar.gz"
 
-    options = "-a" if client_type == "cpu" else "-zh"
-    return os.system(f"rsync {options} {source} {target}")
+    return os.system(f"rsync -a {source} {target}")
 
 
 def chunk_to_shard(fname):
@@ -236,13 +234,15 @@ if __name__ == "__main__":
                 last_sample_id = int(client.shards[shard_of_chunk][1]["end_id"])
 
                 out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
-                logging.info(f"shard identification {out_fname}")
+                logging.info(f"Shard ID : {out_fname}")
+                logging.info("Processing shard")
                 client.log("Processing shard")
 
                 with open(f"sharded-{shard_of_chunk}.wat", "r") as shard_file:
                     parsed_data = parse_wat(shard_file)
                 random.shuffle(parsed_data)
 
+                logging.info("Downloading images")
                 client.log("Downloading images")
                 dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
                 with open(f"{output_folder}{out_fname}.csv", "w") as outfile:
@@ -255,7 +255,7 @@ if __name__ == "__main__":
                 shutil.move("save", upload_path)
 
                 if not args.debug:
-                    upload_status = upload(upload_path, args.type, client.upload_address)
+                    upload_status = upload(upload_path, client.upload_address)
                     if upload_status != 0:
                         client.log("Upload failed")
                         raise Exception("Upload failed")
@@ -266,7 +266,7 @@ if __name__ == "__main__":
 
                 complete[str(client.shards[shard_of_chunk][0])] = f"rsync {upload_path}"
             client.completeJob(complete)
-            logging.info(f"jobs completed in {(time.time() - start):.1f} seconds")
+            logging.info(f"Jobs completed in {(time.time() - start):.1f} seconds")
         except (cah.core.ServerError, requests.exceptions.ConnectionError):
-            logging.error("server error, sleeping for 30 seconds before trying again")
+            logging.error("Server error, sleeping for 30 seconds before trying again")
             time.sleep(30)
