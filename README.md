@@ -10,8 +10,6 @@
 
 To use worker docker images run the following commands, where $NICKNAME is your nickname that will be showed in leaderboard.
 
-To run hybrid worker replace `latest-cpu` with `latest`.
-
 ```bash
 docker run --detach \
   --name watchtower \

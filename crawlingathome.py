@@ -191,15 +191,6 @@ if __name__ == "__main__":
         help="Nickname for leaderboard",
     )
     parser.add_argument(
-        "-t",
-        "--type",
-        required=False,
-        type=str.lower,
-        default="hybrid",
-        choices=["cpu", "hybrid"],
-        help="Worker type selected in the list: cpu, hybrid",
-    )
-    parser.add_argument(
         "--debug",
         action="store_true",
         required=False,
@@ -214,11 +205,6 @@ if __name__ == "__main__":
     multiexit.install()
     sentry_sdk.init(client_key, ignore_errors=ignore_errors, release=os.environ["GIT_COMMIT"])
     multiexit.register(lambda: client.bye())
-
-    if args.type == "hybrid":
-        import pandas as pd
-
-        import clip_filter
 
     server_url = "http://cah.io.community/" if not args.debug else "http://178.63.68.247:8181/"
     client = cah.init(url=server_url, nickname=args.nickname, type=args.type)
@@ -259,17 +245,10 @@ if __name__ == "__main__":
                 writer.writerow(["SAMPLE_ID", "PATH", "URL", "HEIGHT", "WIDTH", "LICENSE"])
                 writer.writerows(dlparse_df)
 
-            if args.type == "hybrid":
-                dlparse_df = pd.read_csv(f"{output_folder}{out_fname}.csv", sep="|")
-                client.log("Dropping NSFW keywords")
-                # Filter with local CPU / GPU
-                final_images = clip_filter.filter(dlparse_df, out_fname)
-                upload_path = f"{output_folder}/*{out_fname}*"
-            else:
-                # Move result to random uuid folder
-                upload_path = uid = uuid4().hex
-                final_images = f"rsync {uid}"
-                shutil.move("save", uid)
+            # Move result to random uuid folder
+            upload_path = uid = uuid4().hex
+            final_images = f"rsync {uid}"
+            shutil.move("save", uid)
 
             if not args.debug:
                 upload_status = upload(upload_path, args.type, client.upload_address)
@@ -277,10 +256,9 @@ if __name__ == "__main__":
                     client.log("Upload failed")
                     raise Exception("Upload failed")
 
-            if args.type == "cpu":
-                if os.path.exists(f"{upload_path}.tar.gz"):
-                    os.remove(f"{upload_path}.tar.gz")
-                shutil.rmtree(uid)
+            if os.path.exists(f"{upload_path}.tar.gz"):
+                os.remove(f"{upload_path}.tar.gz")
+            shutil.rmtree(uid)
 
             client.completeJob(final_images)
             logging.info(f"jobs completed in {(time.time() - start):.1f} seconds")
