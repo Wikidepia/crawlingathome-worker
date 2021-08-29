@@ -162,7 +162,7 @@ async def dl_wat(valid_data, first_sample_id):
     return processed_samples
 
 
-def upload(source, client_type, target):
+def upload(source, target):
     with tarfile.open(f"{source}.tar.gz", "w:gz") as tar:
         tar.add(source, arcname=os.path.basename(source))
     source = f"{source}.tar.gz"
