@@ -1,6 +1,7 @@
 # Crawling@Home Worker
 
-[![Discord Chat](https://img.shields.io/discord/823813159592001537?color=5865F2&logo=discord&logoColor=white)](https://discord.gg/dall-e)
+[![Discord Chat](https://img.shields.io/discord/823813159592001537?color=5865F2&logo=discord&logoColor=white)](https://discord.gg/dall-e) [![Docker Image](https://img.shields.io/docker/image-size/wikidepia/crawlingathome-worker)](https://hub.docker.com/repository/docker/wikidepia/crawlingathome-worker)
+
 
 > Help us build a billion-scale image-caption dataset by filtering Common Crawl with OpenAI CLIP
 
