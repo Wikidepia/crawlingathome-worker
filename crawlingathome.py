@@ -145,7 +145,7 @@ async def dl_wat(valid_data, first_sample_id):
         url, alt_text, license, _ = data
         try:
             process_img = process_img_content(
-                await session.get(url, timeout=3, connection_timeout=10, retries=-1),
+                await session.get(url, timeout=5, connection_timeout=20, retries=-1),
                 sample_id,
             )
             if process_img is not None:
@@ -167,7 +167,7 @@ def upload(source, target):
         tar.add(source, arcname=os.path.basename(source))
     source = f"{source}.tar.gz"
 
-    return os.system(f"rsync -a {source} {target}")
+    return os.system(f"rsync -a --remove-source-files {source} {target}")
 
 
 def chunk_to_shard(fname):
@@ -243,8 +243,9 @@ if __name__ == "__main__":
                 random.shuffle(parsed_data)
 
                 logging.info("Downloading images")
-                client.log("Downloading images")
                 dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
+                logging.info(f"Successfully download {len(dlparse_df)} images")
+
                 with open(f"{output_folder}{out_fname}.csv", "w") as outfile:
                     writer = csv.writer(outfile, delimiter="|")
                     writer.writerow(["SAMPLE_ID", "PATH", "URL", "HEIGHT", "WIDTH", "LICENSE"])
@@ -260,10 +261,7 @@ if __name__ == "__main__":
                         client.log("Upload failed")
                         raise Exception("Upload failed")
 
-                if os.path.exists(f"{upload_path}.tar.gz"):
-                    os.remove(f"{upload_path}.tar.gz")
                 shutil.rmtree(upload_path)
-
                 complete[str(client.shards[shard_of_chunk][0])] = f"rsync {upload_path}"
             client.completeJob(complete)
             logging.info(f"Jobs completed in {(time.time() - start):.1f} seconds")
