@@ -5,6 +5,7 @@ import logging
 import os
 import random
 import shutil
+import ssl
 import subprocess
 import tarfile
 import time
@@ -25,6 +26,10 @@ from PIL import Image, UnidentifiedImageError
 
 import crawlingathome_client as cah
 from crawlingathome_client.temp import TempCPUWorker
+
+ssl_ctx = ssl.create_default_context()
+ssl_ctx.check_hostname = False
+ssl_ctx.verify_mode = ssl.CERT_NONE
 
 
 def remove_bad_chars(text):
@@ -128,7 +133,7 @@ def process_img_content(response, sample_id):
 async def dl_wat(valid_data, first_sample_id):
     cur_sample_id = first_sample_id
     processed_samples = []
-    session = asks.Session(connections=192)
+    session = asks.Session(connections=192, ssl_context=ssl_ctx)
     sem = trio.Semaphore(192, max_value=192)
 
     session.headers = {
