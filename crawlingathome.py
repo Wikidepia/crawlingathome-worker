@@ -31,7 +31,6 @@ ssl_ctx = ssl.create_default_context()
 ssl_ctx.check_hostname = False
 ssl_ctx.verify_mode = ssl.CERT_NONE
 
-
 def remove_bad_chars(text):
     return "".join(c for c in text if c.isprintable())
 
@@ -120,9 +119,6 @@ def process_img_content(response, sample_id):
             exif = im.info.get("exif", b"")
             if im_format not in ["JPEG", "PNG", "WEBP"]:
                 return
-            # Export WEBP image as JPEG
-            if im_format == "WEBP":
-                im_format = "JPEG"
             if im.mode != "RGB":
                 im = im.convert("RGB")
             out_fname = f"{img_output_folder}{sample_id}.{im_format.lower()}"
