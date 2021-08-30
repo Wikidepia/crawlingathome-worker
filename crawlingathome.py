@@ -1,3 +1,4 @@
+import shim
 import argparse
 import csv
 import hashlib
