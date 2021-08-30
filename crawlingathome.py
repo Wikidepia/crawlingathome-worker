@@ -113,15 +113,12 @@ def process_img_content(response, sample_id):
             width, height = im.size
             im_format = im.format
             exif = im.info.get("exif", b"")
+            out_fname = f"{img_output_folder}{sample_id}.{im_format.lower()}"
             if im_format not in ["JPEG", "PNG", "WEBP"]:
                 return
-            # Export WEBP image as JPEG
-            if im_format == "WEBP":
-                im_format = "JPEG"
             if im.mode != "RGB":
                 im = im.convert("RGB")
-            out_fname = f"{img_output_folder}{sample_id}.{im_format.lower()}"
-            im.save(out_fname, im_format, exif=exif)
+            im.save(out_fname, exif=exif)
     except (KeyError, UnidentifiedImageError, Image.DecompressionBombWarning):
         return
 
@@ -132,6 +129,7 @@ async def dl_wat(valid_data, first_sample_id):
     cur_sample_id = first_sample_id
     processed_samples = []
     session = asks.Session(connections=192)
+    sem = trio.Semaphore(192, max_value=192)
 
     session.headers = {
         "User-Agent": "Crawling at Home Project (http://cah.io.community)",
@@ -144,13 +142,15 @@ async def dl_wat(valid_data, first_sample_id):
     async def _request(data, sample_id):
         url, alt_text, license, _ = data
         try:
-            process_img = process_img_content(
-                await session.get(url, timeout=5, connection_timeout=20, retries=-1),
-                sample_id,
-            )
-            if process_img is not None:
-                out_fname, width, height = process_img
-                processed_samples.append([str(sample_id), out_fname, url, alt_text, width, height, license])
+            async with sem:
+                response = await session.get(url, timeout=10, connection_timeout=30, retries=-1)
+                process_img = process_img_content(
+                    response,
+                    sample_id,
+                )
+                if process_img is not None:
+                    out_fname, width, height = process_img
+                    processed_samples.append([str(sample_id), out_fname, url, alt_text, width, height, license])
         except Exception:
             return
 
@@ -233,7 +233,7 @@ if __name__ == "__main__":
                 first_sample_id = int(client.shards[shard_of_chunk][1]["start_id"])
                 last_sample_id = int(client.shards[shard_of_chunk][1]["end_id"])
 
-                out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
+                out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{first_sample_id}_LAST_SAMPLE_ID_IN_SHARD_{last_sample_id}_{shard_of_chunk}"
                 logging.info(f"Shard ID : {out_fname}")
                 logging.info("Processing shard")
                 client.log("Processing shard")
@@ -244,6 +244,7 @@ if __name__ == "__main__":
 
                 logging.info("Downloading images")
                 dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
+                assert len(dlparse_df) > 0
                 logging.info(f"Successfully download {len(dlparse_df)} images")
 
                 with open(f"{output_folder}{out_fname}.csv", "w") as outfile:
