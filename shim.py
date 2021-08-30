@@ -13,5 +13,6 @@ def shim_getaddrinfo(host, port, family=0, socktype=0, proto=0, flags=0):
     except socket.gaierror as e:
         if "Name or service not known" in str(e):
             error_host.add(host)
+        raise e
 
 socket.getaddrinfo = shim_getaddrinfo
