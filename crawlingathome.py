@@ -1,4 +1,3 @@
-import shim
 import argparse
 import csv
 import hashlib
@@ -6,10 +5,12 @@ import logging
 import os
 import random
 import shutil
+import socket
 import ssl
 import subprocess
 import tarfile
 import time
+from functools import lru_cache
 from io import BytesIO, StringIO
 from urllib.parse import urljoin, urlparse
 from uuid import uuid4
@@ -31,6 +32,24 @@ from crawlingathome_client.temp import TempCPUWorker
 ssl_ctx = ssl.create_default_context()
 ssl_ctx.check_hostname = False
 ssl_ctx.verify_mode = ssl.CERT_NONE
+
+
+class CustomResolver(trio.abc.HostnameResolver):
+    def __init__(self):
+        self.error_hosts = set()
+
+    @lru_cache(maxsize=100_000)
+    async def getaddrinfo(self, host, port, family, type, proto, flags):
+        try:
+            return socket.getaddrinfo(host, port, family, type, proto, flags)
+        except socket.gaierror as e:
+            if e.errno == -2:
+                self.error_hosts.add(host)
+            raise
+
+    async def getnameinfo(self, sockaddr, flags):
+        raise NotImplementedError
+
 
 def remove_bad_chars(text):
     return "".join(c for c in text if c.isprintable())
@@ -134,6 +153,7 @@ async def dl_wat(valid_data, first_sample_id):
     cur_sample_id = first_sample_id
     processed_samples = []
     session = asks.Session(connections=192, ssl_context=ssl_ctx)
+    trio.socket.set_custom_hostname_resolver(CustomResolver())
 
     session.headers = {
         "User-Agent": "Crawling at Home Project (http://cah.io.community)",
