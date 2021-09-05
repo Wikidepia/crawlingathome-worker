@@ -31,10 +31,6 @@ ssl_ctx = ssl.create_default_context()
 ssl_ctx.check_hostname = False
 ssl_ctx.verify_mode = ssl.CERT_NONE
 
-# Initialize URL bloom filter
-url_dedupe = BloomFilter(max_elements=100_000_000, error_rate=0.01, filename=("url-filter.bin", -1), start_fresh=True)
-url_dedupe_count = 0
-
 
 def remove_bad_chars(text):
     return "".join(c for c in text if c.isprintable())
@@ -52,14 +48,17 @@ def load_bloom():
         error_rate=0.01,
         filename=("failed-domains.bin", -1),
     )
-    return blocklist_domain
+    url_dedupe = BloomFilter(
+        max_elements=100_000_000,
+        error_rate=0.01,
+        filename=("url-filter.bin", -1),
+    )
+    return blocklist_domain, url_dedupe
 
 
 def parse_wat(fopen):
-    global url_dedupe_count, url_dedupe
-
     valid_data = []
-    blocklist_domain = load_bloom()
+    blocklist_domain, url_dedupe = load_bloom()
     blocklist_format = set([".svg", ".gif", ".ico", "data:image", "javascript:", "mailto:"])
 
     for line in fopen:
@@ -88,19 +87,18 @@ def parse_wat(fopen):
 
             if not url.startswith("http"):
                 url = urljoin(base_url, url)
-            hashed_imgalt = hashlib.md5((url + alt_text).encode("utf-8")).hexdigest()
+            hashed_imgalt = hashlib.md5((url + alt_text)).hexdigest()
             # Skip url with various filter
             try:
-                if (
+                if not (
                     any(bl in url.lower() for bl in blocklist_format)
                     or url in url_dedupe
                     or urlparse(url).netloc in blocklist_domain
                     or len(url) > 2048  # prevent bufio.scanner too long
                 ):
-                    continue
+                    valid_data.append((url, alt_text, img_license, hashed_imgalt))
             except:
-                continue
-            valid_data.append((url, alt_text, img_license, hashed_imgalt))
+                pass
 
     # Deduplicate to bloom filter server
     hashes = StringIO("\n".join(x[3] for x in valid_data))
@@ -112,11 +110,6 @@ def parse_wat(fopen):
 
     # Add to URL bloom filter
     map(url_dedupe.add, (x[0] for x in valid_data))
-    url_dedupe_count += len(valid_data)
-    if url_dedupe_count > 100_000_000:
-        url_dedupe = BloomFilter(
-            max_elements=100_000_000, error_rate=0.01, filename=("url-filter.bin", -1), start_fresh=True
-        )
     return valid_data
 
 
@@ -131,20 +124,22 @@ def process_img_content(response, sample_id):
             width, height = im.size
             im_format = im.format
             exif = im.info.get("exif", b"")
+            out_fname = f"{img_output_folder}{sample_id}.{im_format.lower()}"
             if im_format not in ["JPEG", "PNG", "WEBP"]:
                 return
             if im.mode != "RGB":
                 im = im.convert("RGB")
-            out_fname = f"{img_output_folder}{sample_id}.{im_format.lower()}"
-            im.save(out_fname, im_format, exif=exif)
+                im.save(out_fname, im_format, exif=exif)
+            else:
+                with open(out_fname, "wb") as f:
+                    f.write(response.content)
     except (KeyError, UnidentifiedImageError, Image.DecompressionBombWarning):
         return
 
     return out_fname, width, height
 
 
-async def dl_wat(valid_data, first_sample_id):
-    cur_sample_id = first_sample_id
+async def dl_wat(valid_data, cur_sample_id):
     processed_samples = []
     session = asks.Session(connections=192, ssl_context=ssl_ctx)
 
@@ -227,6 +222,10 @@ if __name__ == "__main__":
 
     output_folder = "./save/"
     img_output_folder = output_folder + "images/"
+    url_dedupe_count = 0
+
+    if os.path.exists("url-filter.bin"):
+        os.remove("url-filter.bin")
 
     while True:
         start = time.time()
@@ -238,6 +237,9 @@ if __name__ == "__main__":
             client.downloadWat()
 
             chunk_to_shard("shard.wat")
+            # 90M to prevent overcapacity
+            if url_dedupe_count > 90_000_000:
+                os.remove("url-filter.bin")
             for shard_of_chunk in range(2):
                 if os.path.exists(output_folder):
                     shutil.rmtree(output_folder)
@@ -255,6 +257,7 @@ if __name__ == "__main__":
 
                 with open(f"sharded-{shard_of_chunk}.wat", "r") as shard_file:
                     parsed_data = parse_wat(shard_file)
+                url_dedupe_count += len(parsed_data)
                 random.shuffle(parsed_data)
 
                 logging.info("Downloading images")
