@@ -31,6 +31,11 @@ ssl_ctx = ssl.create_default_context()
 ssl_ctx.check_hostname = False
 ssl_ctx.verify_mode = ssl.CERT_NONE
 
+# Initialize URL bloom filter
+url_dedupe = BloomFilter(max_elements=100_000_000, error_rate=0.01, filename=("url-filter.bin", -1), start_fresh=True)
+url_dedupe_count = 0
+
+
 def remove_bad_chars(text):
     return "".join(c for c in text if c.isprintable())
 
@@ -51,8 +56,9 @@ def load_bloom():
 
 
 def parse_wat(fopen):
+    global url_dedupe_count, url_dedupe
+
     valid_data = []
-    url_dedupe = set()
     blocklist_domain = load_bloom()
     blocklist_format = set([".svg", ".gif", ".ico", "data:image", "javascript:", "mailto:"])
 
@@ -94,15 +100,23 @@ def parse_wat(fopen):
                     continue
             except:
                 continue
-
-            url_dedupe.add(url)
             valid_data.append((url, alt_text, img_license, hashed_imgalt))
 
-    # Deduplicate
+    # Deduplicate to bloom filter server
     hashes = StringIO("\n".join(x[3] for x in valid_data))
-    r = requests.post("http://116.202.162.146:8000/deduplicate/", files={"file": hashes}, data={"key": "clipped"})
-    deduped_hashes = set(r.text.split("\n"))
+    req_bloom = requests.post(
+        "http://116.202.162.146:8000/deduplicate/", files={"file": hashes}, data={"key": "clipped"}
+    )
+    deduped_hashes = set(req_bloom.text.split("\n"))
     valid_data = [x for x in valid_data if x[3] in deduped_hashes]
+
+    # Add to URL bloom filter
+    map(url_dedupe.add, (x[0] for x in valid_data))
+    url_dedupe_count += len(valid_data)
+    if url_dedupe_count > 100_000_000:
+        url_dedupe = BloomFilter(
+            max_elements=100_000_000, error_rate=0.01, filename=("url-filter.bin", -1), start_fresh=True
+        )
     return valid_data
 
 
@@ -135,10 +149,10 @@ async def dl_wat(valid_data, first_sample_id):
     session = asks.Session(connections=192, ssl_context=ssl_ctx)
 
     session.headers = {
-        "User-Agent": "Crawling at Home Project (http://cah.io.community)",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36",
         "Accept-Language": "en-US",
         "Accept-Encoding": "gzip, deflate",
-        "Referer": "http://cah.io.community",
+        "Referer": "https://google.com",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     }
 
