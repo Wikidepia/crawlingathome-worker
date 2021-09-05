@@ -155,7 +155,7 @@ async def dl_wat(valid_data, cur_sample_id):
         url, alt_text, license, _ = data
         try:
             process_img = process_img_content(
-                await session.get(url, timeout=5, connection_timeout=20, retries=-1),
+                await session.get(url, timeout=10, connection_timeout=20, retries=-1),
                 sample_id,
             )
             if process_img is not None:
@@ -262,7 +262,7 @@ if __name__ == "__main__":
 
                 logging.info("Downloading images")
                 dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
-                logging.info(f"Successfully download {len(dlparse_df)} images")
+                logging.info(f"Successfully download {len(dlparse_df)} images out of {len(parsed_data)} links")
 
                 with open(f"{output_folder}{out_fname}.csv", "w") as outfile:
                     writer = csv.writer(outfile, delimiter="|")
