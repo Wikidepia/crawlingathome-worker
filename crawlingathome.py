@@ -87,7 +87,7 @@ def parse_wat(fopen):
 
             if not url.startswith("http"):
                 url = urljoin(base_url, url)
-            hashed_imgalt = hashlib.md5((url + alt_text)).hexdigest()
+            hashed_imgalt = hashlib.md5((url + alt_text).encode("utf-8")).hexdigest()
             # Skip url with various filter
             try:
                 if not (
