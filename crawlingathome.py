@@ -59,6 +59,7 @@ def load_bloom():
 def parse_wat(fopen):
     valid_data = []
     blocklist_domain, url_dedupe = load_bloom()
+    wat_url = set()
     blocklist_format = set([".svg", ".gif", ".ico", "data:image", "javascript:", "mailto:"])
 
     for line in fopen:
@@ -93,10 +94,12 @@ def parse_wat(fopen):
                 if not (
                     any(bl in url.lower() for bl in blocklist_format)
                     or url in url_dedupe
+                    or url in wat_url
                     or urlparse(url).netloc in blocklist_domain
                     or len(url) > 2048  # prevent bufio.scanner too long
                 ):
                     valid_data.append((url, alt_text, img_license, hashed_imgalt))
+                    wat_url.add(url)
             except:
                 pass
 
@@ -107,9 +110,7 @@ def parse_wat(fopen):
     )
     deduped_hashes = set(req_bloom.text.split("\n"))
     valid_data = [x for x in valid_data if x[3] in deduped_hashes]
-
-    # Add to URL bloom filter
-    map(url_dedupe.add, (x[0] for x in valid_data))
+    map(url_dedupe.add, (x[0] for x in valid_data)) # Add to URL bloom filter
     return valid_data
 
 
