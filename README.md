@@ -1,5 +1,7 @@
 # Crawling@Home Worker
 
+# Deprecated! Please use [ARKseal/crawlingathome-worker](https://github.com/ARKseal/crawlingathome-worker)
+
 [![Discord Chat](https://img.shields.io/discord/823813159592001537?color=5865F2&logo=discord&logoColor=white)](https://discord.gg/dall-e) [![Docker Image](https://img.shields.io/docker/image-size/wikidepia/crawlingathome-worker)](https://hub.docker.com/repository/docker/wikidepia/crawlingathome-worker)
 
 
