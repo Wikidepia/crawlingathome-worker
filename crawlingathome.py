@@ -124,20 +124,13 @@ def process_img_content(response, sample_id):
         with Image.open(img_data) as im:
             width, height = im.size
             im_format = im.format
-            exif = im.info.get("exif", b"")
             out_fname = f"{img_output_folder}{sample_id}.{im_format.lower()}"
-            if im_format not in ["JPEG", "PNG", "WEBP"]:
-                return
-            if im.mode != "RGB":
-                im = im.convert("RGB")
-                im.save(out_fname, im_format, exif=exif)
-            else:
+            if im_format in ["JPEG", "PNG", "WEBP"]:
                 with open(out_fname, "wb") as f:
                     f.write(response.content)
+                return out_fname, width, height
     except (KeyError, UnidentifiedImageError, Image.DecompressionBombWarning):
         return
-
-    return out_fname, width, height
 
 
 async def dl_wat(valid_data, cur_sample_id):
