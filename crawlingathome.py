@@ -146,6 +146,13 @@ async def dl_wat(valid_data, cur_sample_id):
             cur_sample_id += 1
             n.start_soon(_request, data, cur_sample_id)
 
+    # Add processed data to bloom filter server
+    hashes = StringIO("\n".join(x[3] for x in valid_data))
+    requests.post(
+        "http://94.130.167.172:8000/add/",
+        files={"file": hashes},
+        data={"key": "parsed"},
+    )
     return processed_samples
 
 
