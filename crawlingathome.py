@@ -10,7 +10,7 @@ import subprocess
 import tarfile
 import time
 from io import BytesIO, StringIO
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 from uuid import uuid4
 
 import asks
@@ -21,7 +21,6 @@ import requests
 import sentry_sdk
 import trio
 import ujson
-from bloom_filter2 import BloomFilter
 from PIL import Image, UnidentifiedImageError
 
 import crawlingathome_client as cah
@@ -36,29 +35,8 @@ def remove_bad_chars(text):
     return "".join(c for c in text if c.isprintable())
 
 
-def load_bloom():
-    url = "http://the-eye.eu/public/AI/cahblacklists/failed-domains.bin"
-    if not os.path.exists("failed-domains.bin"):
-        r = requests.get(url, headers={"User-Agent": "Crawling@Home"})
-        with open("failed-domains.bin", "wb") as f:
-            f.write(r.content)
-
-    blocklist_domain = BloomFilter(
-        max_elements=10_000_000,
-        error_rate=0.01,
-        filename=("failed-domains.bin", -1),
-    )
-    url_dedupe = BloomFilter(
-        max_elements=100_000_000,
-        error_rate=0.01,
-        filename=("url-filter.bin", -1),
-    )
-    return blocklist_domain, url_dedupe
-
-
 def parse_wat(fopen):
     valid_data = []
-    blocklist_domain, url_dedupe = load_bloom()
     wat_url = set()
     blocklist_format = set([".svg", ".gif", ".ico", "data:image", "javascript:", "mailto:"])
 
@@ -93,9 +71,7 @@ def parse_wat(fopen):
             try:
                 if not (
                     any(bl in url.lower() for bl in blocklist_format)
-                    or url in url_dedupe
                     or url in wat_url
-                    or urlparse(url).netloc in blocklist_domain
                     or len(url) > 2048  # prevent bufio.scanner too long
                 ):
                     valid_data.append((url, alt_text, img_license, hashed_imgalt))
@@ -106,11 +82,18 @@ def parse_wat(fopen):
     # Deduplicate to bloom filter server
     hashes = StringIO("\n".join(x[3] for x in valid_data))
     req_bloom = requests.post(
-        "http://116.202.162.146:8000/deduplicate/", files={"file": hashes}, data={"key": "clipped"}
+        "http://116.202.162.146:8000/deduplicate/",
+        files={"file": hashes},
+        data={"key": "clipped"},
+    )
+    hashes = StringIO(req_bloom.text)
+    req_bloom = requests.post(
+        "http://94.130.167.172:8000/deduplicate/",
+        files={"file": hashes},
+        data={"key": "parsed"},
     )
     deduped_hashes = set(req_bloom.text.split("\n"))
     valid_data = [x for x in valid_data if x[3] in deduped_hashes]
-    map(url_dedupe.add, (x[0] for x in valid_data)) # Add to URL bloom filter
     return valid_data
 
 
@@ -170,7 +153,6 @@ def upload(source, target):
     with tarfile.open(f"{source}.tar.gz", "w:gz") as tar:
         tar.add(source, arcname=os.path.basename(source))
     source = f"{source}.tar.gz"
-
     return os.system(f"rsync -a --remove-source-files {source} {target}")
 
 
@@ -202,7 +184,11 @@ if __name__ == "__main__":
         help="Use debug server & disable upload",
     )
     args = parser.parse_args()
-    logging.basicConfig(format="[%(asctime)s crawling@home] %(message)s", datefmt="%H:%M", level=logging.INFO)
+    logging.basicConfig(
+        format="[%(asctime)s crawling@home] %(message)s",
+        datefmt="%H:%M",
+        level=logging.INFO,
+    )
 
     # Setup signal handling to gracefully exit and report on errors
     ignore_errors = [KeyboardInterrupt]
@@ -231,9 +217,6 @@ if __name__ == "__main__":
             client.downloadWat()
 
             chunk_to_shard("shard.wat")
-            # 90M to prevent overcapacity
-            if url_dedupe_count > 90_000_000:
-                os.remove("url-filter.bin")
             for shard_of_chunk in range(2):
                 if os.path.exists(output_folder):
                     shutil.rmtree(output_folder)
